@@ -3284,6 +3284,7 @@ doesn't have to be scalar, though it generally would be when parsing text. In or
 | 1. Construct a memoization key. This is a function from the input position to a string.
   2. Provide parser combinators that return new states. Most of the higher-order combinators are general that they will work with low-level combinators.
   3. Provide a function that constructs the initial location given an input. For strings, this is just f(s) = 0.
+  4. Provide a function that takes a given state and returns a list of forward adjacent states. For strings, this is f(i) = [i + 1].
 
 Because this parser combinator library implements a non-backtracking Packrat parser, the usual nondeterminism caveats apply.
 
@@ -3291,6 +3292,14 @@ Implementation specifics.
 Unlike some parser combinator implementations, this one provides a way to specify detailed failure information. This gives the user an idea about why and where a parse failed. Also unlike many
 Javascript parser combinator libraries, this one uses Caterwaul macros to make it easy to build up grammars. Each operator corresponds to a higher-order combinator provided by the Caterwaul
 parsing library.
+
+Nonlinear parsing.
+Let's suppose that we want to assign scopes to all local variables in a Caterwaul parse tree. This can be done by manually iterating over the tree, but it can also be set up as a parser that
+traverses the tree and looks for variables. Here's what those rules would look like, in pseudocode:
+
+| locals     = accumulate_pathwise(many(not(is_function_node)), variables)
+  variables  = accumulate_pathwise(is_var_node, alternative(identifier, assignment))
+  assignment = map(is_assignment_node, node[0])
 
 __
 meta::sdoc('js::repl', <<'__');
