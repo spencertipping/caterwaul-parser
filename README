@@ -1,0 +1,6 @@
+Memoized parser combinators for Caterwaul 1.1. Unlike previous implementations,
+this one allows you to parse things that are nonlinear. For example, you can
+"parse" Caterwaul syntax trees to do things like nondeterministic searches.
+This arises from the fact that combinatory parsers are really just incremental
+functions and various sequential modifications of them. (More about this in the
+source documentation.)
