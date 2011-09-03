@@ -21,47 +21,50 @@
 // appropriately-defined termination conditions. This means that you could theoretically use these parser combinators to identify properties of continuous vector fields or other non-discrete
 // directed structures.
 
-// Nonlinear parsing.
-// Let's suppose that we want to assign scopes to all local variables in a Caterwaul parse tree. This can be done by manually iterating over the tree, but it can also be set up as a parser that
-// traverses the tree and looks for variables. Here's what those rules would look like, in pseudocode:
+// Linear paths.
+// Let's assume that we're parsing over a strictly hierarchical tree and that we start at the root (mainly for ease of thought; I think this example is fully general to all DAGs with exactly one
+// in-degree-zero node). We want to parse from the top to the bottom, accumulating all paths that are parseable as arithmetic expressions. So, for example, we might have a tree that looks like
+// this:
 
-// | locals              = nondeterministic(many, not(is_function_node), local_binding)
-//   local_binding       = nondeterministic(many, comma_node, local_or_assignment)
-//   local_or_assignment = alternative(identifier, map(assignment, given.x in x[0]))
+// |         (3)
+//          /   \
+//        (+)   (4)
+//        /     / \
+//      (4)   (+) (6)
+//     /   \
+//   (*)   (5)
+//    |     |
+//   (4)   (+)
 
-// Obviously the prefix notation here is cumbersome. Nonlinear parser combinators are generally denoted differently, using operators and/or regular expressions.
+// Since we're working with a tree, we know that the 'forward' function returns an array of a node's children. So each parse step is really a list of alternatives. Parsing the 'next character' or
+// 'next X' amounts to flat-mapping across forward motions. This will probably make more sense with an example:
 
-//   Linear paths.
-//   Let's assume that we're parsing over a strictly hierarchical tree and that we start at the root (mainly for ease of thought; I think this example is fully general to all DAGs with exactly
-//   one in-degree-zero node). We want to parse from the top to the bottom, accumulating all paths that are parseable as arithmetic expressions. So, for example, we might have a tree that looks
-//   like this:
+// | expression = term '+' expression | term
+//   term       = number '*' term | number
 
-//   |         (3)
-//            /   \
-//          (+)   (4)
-//          /     / \
-//        (4)   (+) (6)
-//       /   \
-//     (*)   (5)
-//      |     |
-//     (4)   (+)
+// Starting with 'expression', we parse this way, starting with the roots (in this case, only one):
 
-//   Since we're working with a tree, we know that the 'forward' function returns an array of a node's children. So each parse step is really a list of alternatives. Parsing the 'next character'
-//   or 'next X' amounts to flat-mapping across forward motions. This will probably make more sense with an example:
+// | expression(root) = expression( (3) ) -> term( (3) ) -> number( (3) ) -> 3           <- at this point, we've consumed (3) and should move to the next inputs.
+//                        '*'( (+) ) | '+'( (+) ) -> +                                   <- use disjunction to ascend to matching terminal; advance to next inputs.
+//                          expression( (4) ) -> term( (4) ) -> number( (4) ) -> 4       <- right-recursion into expression(), advance.
+//                            '*'( (*) ) -> *                                            <- matching within the term() expansion
+//                              term( (4) ) -> number( (4) ) -> 4                        <- second term() within the term() above
+//                            '*'( (5) ) | '+'( (5) ) -> fail                            <- no match here; reject this subtree
+//                        '*'( (4) ) | '+'( (4) ) -> fail                                <- no match here; reject this subtree
 
-//   | expression = term '+' expression | term
-//     term       = number '*' term | number
+// At the end we have an array of the only surviving alternative, (3 + (4 * 4)). (Presumably the parser combinators are configured to construct parse trees.) This is basically a linear parse that
+// removed alternatives as it went; the result was an array of valid parse trees.
 
-//   Starting with 'expression', we parse this way, starting with the roots (in this case, only one):
+// Leveraging nonlinearity.
+// Nonlinearity comes in handy when you're asking about properties of highly structured data. For example, maybe we want to know whether a Caterwaul syntax tree contains a console.log() statement
+// that follows an assignment to a variable. However, those statements need to occur in the same control flow branch; we can't have them on opposite sides of a conditional. (If we did, then
+// console.log() wouldn't really follow the assignment.) To do this, we first need to define a traversal pattern that follows the evaluation order. This differs from a breadth-first traversal
+// because it needs to become nondeterministic when we hit a decision but be linear when we hit a side-effect like a semicolon.
 
-//   | expression(root) = expression( (3) ) -> term( (3) ) -> number( (3) ) -> 3           <- at this point, we've consumed (3) and should move to the next inputs.
-//                          '*'( (+) ) | '+'( (+) ) -> +                                   <- use disjunction to ascend to matching terminal; advance to next inputs.
-//                            expression( (4) ) -> term( (4) ) -> number( (4) ) -> 4       <- right-recursion into expression(), advance.
-//                              '*'( (*) ) -> *                                            <- matching within the term() expansion
-//                                term( (4) ) -> number( (4) ) -> 4                        <- second term() within the term() above
-//                              '*'( (5) ) | '+'( (5) ) -> fail                            <- no match here; reject this subtree
-//                          '*'( (4) ) | '+'( (4) ) -> fail                                <- no match here; reject this subtree
+// We then write this rule to find what we're looking for:
 
-//   At the end we have an array of the only surviving alternative, (3 + (4 * 4)). (Presumably the parser combinators are configured to construct parse trees.) This is basically a linear parse
-//   that removed alternatives as it went; the result was an array of valid parse trees.
+// | log = any* '_variable = _value' non_decision* 'console.log(_log_value)'
+
+// If we run this with nonlinear parsing, we'll get a list of all code paths that end up assigning a variable and then definitely call console.log (barring exceptions). As a nice perk, we'll also
+// get the side-effects leading up to those code paths as well as the statements that happened in between the assignment and the log statement.
 // Generated by SDoc 
