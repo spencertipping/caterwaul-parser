@@ -265,6 +265,7 @@ parse_associates_right = hash('= += -= *= /= %= &= ^= |= <<= >>= >>>= ~ ! new ty
 //     These functions let you make "changes" to a node by returning a modified copy.
 
       repopulated_with: function (xs)   {return new this.constructor(this.data, xs)},
+      with_data:        function (d)    {return new this.constructor(d, Array.prototype.slice.call(this))},
       change:           function (i, x) {return se(new this.constructor(this.data, Array.prototype.slice.call(this)), function (n) {n[i] = x})},
       compose_single:   function (i, f) {return this.change(i, f(this[i]))},
 
@@ -384,19 +385,42 @@ parse_associates_right = hash('= += -= *= /= %= &= ^= |= <<= >>= >>>= ~ ! new ty
 //   Wildcards are used for pattern matching and are identified by beginning with an underscore. This is a very frequently-called method, so I'm using a very inexpensive numeric check rather
 //   than a string comparison. The ASCII value for underscore is 95.
 
+    var parse_hex   = caterwaul_global.parse_hex       = function (digits) {for (var result = 0, i = 0, l = digits.length, d; i < l; ++i, result *= 16)
+                                                                              result += (d = digits.charCodeAt(i)) <= 58 ? d - 48 : (d & 0x5f) - 55;
+                                                                            return result},
+
+        parse_octal = caterwaul_global.parse_octal     = function (digits) {for (var result = 0, i = 0, l = digits.length; i < l; ++i, result *= 8) result += digits.charCodeAt(i) - 48;
+                                                                            return result},
+
+    unescape_string = caterwaul_global.unescape_string = function (s) {for (var i = 0, c, l = s.length, result = [], is_escaped = false; i < l; ++i)
+                                                                         if (is_escaped) is_escaped = false,
+                                                                                         result.push((c = s.charAt(i)) === '\\' ? '\\' :
+                                                                                                     c === 'n' ? '\n'     : c === 'r' ? '\r' : c === 'b' ? '\b' : c === 'f' ? '\f' :
+                                                                                                     c === '0' ? '\u0000' : c === 't' ? '\t' : c === 'v' ? '\v' :
+                                                                                                     c === '"' || c === '\'' ? c :
+                                                                                                     c === 'x' ? String.fromCharCode(parse_hex(s.substring(i, ++i + 1))) :
+                                                                                                     c === 'u' ? String.fromCharCode(parse_hex(s.substring(i, (i += 3) + 1))) :
+                                                                                                                 String.fromCharCode(parse_octal(s.substring(i, (i += 2) + 1))));
+                                                                    else if ((c = s.charAt(i)) === '\\') is_escaped = true;
+                                                                    else result.push(c);
+
+                                                                       return result.join('')};
     caterwaul_global.javascript_tree_type_methods = {
                is_string: function () {return /['"]/.test(this.data.charAt(0))},           as_escaped_string: function () {return this.data.substr(1, this.data.length - 2)}, 
                is_number: function () {return /^-?(0x|\d|\.\d+)/.test(this.data)},                 as_number: function () {return Number(this.data)},
               is_boolean: function () {return this.data === 'true' || this.data === 'false'},     as_boolean: function () {return this.data === 'true'},
                is_regexp: function () {return /^\/./.test(this.data)},                     as_escaped_regexp: function () {return this.data.substring(1, this.data.lastIndexOf('/'))},
+                is_array: function () {return this.data === '['},                        as_unescaped_string: function () {return unescape_string(this.as_escaped_string())},
 
              is_wildcard: function () {return this.data.charCodeAt(0) === 95},
+           is_identifier: function () {return this.length === 0 && /^[A-Za-z_$]\w*$/.test(this.data) && ! this.is_boolean() && ! this.is_null_or_undefined() && ! has(lex_op, this.data)},
 
        has_grouped_block: function () {return has(parse_r_until_block, this.data)},                 is_block: function () {return has(parse_block, this.data)},
     is_blockless_keyword: function () {return has(parse_r_optional, this.data)},        is_null_or_undefined: function () {return this.data === 'null' || this.data === 'undefined'},
 
              is_constant: function () {return this.is_number() || this.is_string() || this.is_boolean() || this.is_regexp() || this.is_null_or_undefined()},
           left_is_lvalue: function () {return /=$/.test(this.data) || /\+\+$/.test(this.data) || /--$/.test(this.data)},
+
                 is_empty: function () {return !this.length},                              has_parameter_list: function () {return this.data === 'function' || this.data === 'catch'},
          has_lvalue_list: function () {return this.data === 'var' || this.data === 'const'},  is_dereference: function () {return this.data === '.' || this.data === '[]'},
            is_invocation: function () {return this.data === '()'},              is_contextualized_invocation: function () {return this.is_invocation() && this[0].is_dereference()},
@@ -1091,6 +1115,38 @@ is_prefix_unary_operator: function () {return has(parse_r, this.data)},         
 
         function_destructure = function (node) {return function_args_rule.call(this, node) || function_rule.call(this, node)};
 
+//   Literal modification.
+//   Caterwaul 1.1.2 introduces literal modification, which provides ways to reinterpret various types of literals at compile-time. These are always written as postfix property accesses, e.g.
+//   /foo bar/.x -- here, 'x' is the modifier. Cool as it would be to be able to stack modifiers up, right now Caterwaul doesn't support this. Part of the reason is that I'm too lazy/uninsightful
+//   to know how to do it performantly considering the present architecture, but another part of it is that the bugs would become strange and subtle. My goal is to keep the compilation process
+//   reasonably transparent, and you can imagine the bizarre chain of events that would occur if someone wrote a modifier that, for instance, returned a different type of literal. It would be
+//   utter chaos (though a really cool form of it).
+
+//   Sadly, you can't modify object literals. The reason has to do with syntactic ambiguity. Suppose you've got a function like this:
+
+//   | function () {
+//       {foo: 'bar'}.modifier
+//       return true;
+//     }
+
+//   This function fails to parse under SpiderMonkey, since it assumes that {foo: 'bar'} is a statement-level block with a label 'foo' and a discarded string literal 'bar'. Rather than open this
+//   can of worms, I'm just nixing the whole idea of modifying object literals (besides, it doesn't seem particularly useful anyway, though perhaps I'm being myopic about it).
+
+    var modified_literal_form   = $.pattern('_literal._modifier'),
+
+        lookup_literal_modifier = function (caterwaul, type, modifier) {var hash = caterwaul.literal_modifiers[type];
+                                                                        return hash.hasOwnProperty(modifier) && hash[modifier]},
+
+        literal_modifier        = function (node) {var modified_literal = modified_literal_form.call(this, node), literal, expander;
+                                                   if (modified_literal && (literal  = modified_literal._literal) &&
+                                                                           (expander = literal.is_identifier() ? lookup_literal_modifier(this, 'identifier', modified_literal._modifier.data) :
+                                                                                       literal.is_array()      ? lookup_literal_modifier(this, 'array',      modified_literal._modifier.data) :
+                                                                                       literal.is_regexp()     ? lookup_literal_modifier(this, 'regexp',     modified_literal._modifier.data) :
+                                                                                       literal.is_number()     ? lookup_literal_modifier(this, 'number',     modified_literal._modifier.data) :
+                                                                                       literal.is_string()     ? lookup_literal_modifier(this, 'string',     modified_literal._modifier.data) :
+                                                                                                                 null))
+                                                     return expander.call(this, literal)};
+
 //   Modifier syntax.
 //   These are the 'structured forms' I was talking about above. Prior to caterwaul 1.1 these were stored as individual pre-expanded macros. This had a number of problems, perhaps most notably
 //   that it was extremely inefficient. I loaded up caterwaul in the REPL and found that caterwaul.js_ui(caterwaul.js_all()) had 329 macros installed. This meant 329 tree-match tests for every
@@ -1140,16 +1196,77 @@ is_prefix_unary_operator: function () {return has(parse_r, this.data)},         
 //   I've got two closures here to avoid putting a conditional in either one of them. In particular, we know already whether we got a macroexpander, so there's no need to test it inside the
 //   function (which will be called lots of times).
 
-    var result = macroexpander ? $(function (node) {return macroexpander.call(this, node) ||
-                                                           string_interpolator.call(this, node) || node.length && (modifier            .call(this, node) ||
-                                                                                                                   function_destructure.call(this, node))}) :
+    var each_node = function (node) {return string_interpolator.call(this, node) || literal_modifier.call(this, node) ||
+                                            node.length && (modifier.call(this, node) || function_destructure.call(this, node))},
 
-                                 $(function (node) {return string_interpolator.call(this, node) || node.length && (modifier            .call(this, node) ||
-                                                                                                                   function_destructure.call(this, node))});
+        result    = macroexpander ? $(function (node) {return macroexpander.call(this, node) || each_node.call(this, node)}) :
+                                    $(each_node);
+
     result.modifiers               = [];
     result.parameterized_modifiers = [];
 
+    result.literal_modifiers = {regexp: {}, array: {}, string: {}, number: {}, identifier: {}};
+
     return result}})(caterwaul);
+
+// Generated by SDoc 
+
+
+
+
+
+// Javascript literal notation | Spencer Tipping
+// Licensed under the terms of the MIT source code license
+
+// Introduction.
+// These macros provide some convenient literal notation for various Javascript literals. For obvious reasons they have names that are unlikely to collide with methods.
+
+(function ($) {
+  $.js_literals = function (caterwaul_function) {
+
+    var function_template = $.parse('function (_) {return _body}');
+
+//   Regular expression literals.
+//   Right now we just support the 'x' flag, which causes all whitespace within the regular expression to be ignored. This is a straightforward preprocessing transformation, since we have access
+//   to the regexp in string form anyway.
+
+//   To make Javascript's regular expressions more useful I've also included the 'qf' modifier. This turns a regular expression into a matching function; for example, /foo/.qf becomes (function
+//   (s) {return /foo/.exec(s)}).
+
+    (function (r) {r.x  = $.reexpander(function (node) {return node.with_data(node.data.replace(/\s+/g, ''))});
+
+                   var call_exec_template = $.parse('_regexp.exec(_)');
+                   r.qf = function (node) {return function_template.replace({_body: call_exec_template.replace({_regexp: node})})}})(caterwaul_function.literal_modifiers.regexp);
+
+//   String literals.
+//   There are a couple of things we can do with strings. First, there's the 'qw' modifier, which causes a string to be split into an array of words at compile-time. So, for instance, the
+//   expression 'foo bar bif'.qw would be compiled into ['foo', 'bar', 'bif']. Another modifier is 'qh', which is like 'qw' but creates a hash instead. So 'foo bar bif baz'.qh would result in
+//   {foo: 'bar', bif: 'baz'}. There's also qr, which converts from a string to a regular expression and does all of the appropriate escape conversions. Some care should be taken with this,
+//   however, because not all regexp escapes are valid in strings. In particular, you can't do things like 'foo\[bar\]'.qr because \[ isn't recognized in strings.
+
+//   Another modifier is 'qs', which is rarely used outside of the context of writing macros. The idea here is to have Caterwaul parse the string and return a reference to the parse tree. So, for
+//   example, 'foo.bar'.qs is compiled into a reference to the parse tree for foo.bar. A caveat here is that the parse happens only once, so any mutations that happen to the syntax tree are
+//   persisted across invocations. (Unlike the way that array and object literals are interpreted, which is to create a new array or object each time that node is evaluated.)
+
+//   Functions can be written concisely using qf. This causes the string to be interpreted as the body of a function whose sole argument is called _. This may change at some point in the future.
+
+    (function (s) {s.qw = $.reexpander(function (node) {for (var array_node = new $.syntax('['), comma = new $.syntax(','), delimiter = node.data.charAt(0),
+                                                                 pieces = node.as_escaped_string().split(/\s+/), i = 0, l = pieces.length; i < l; ++i)
+                                                          comma.push(new $.syntax(delimiter + pieces[i] + delimiter));
+                                                        return array_node.push(comma.unflatten())});
+
+                   s.qh = $.reexpander(function (node) {for (var hash_node = new $.syntax('{'), comma = new $.syntax(','), delimiter = node.data.charAt(0),
+                                                                 pieces = node.as_escaped_string().split(/\s+/), i = 0, l = pieces.length; i < l; i += 2)
+                                                          comma.push(new $.syntax(':', new $.syntax(delimiter + pieces[i] + delimiter), new $.syntax(delimiter + pieces[i + 1] + delimiter)));
+                                                        return hash_node.push(comma.unflatten())});
+
+                   s.qr = $.reexpander(function (node) {return node.with_data('/' + node.as_escaped_string().replace(/\//g, '\\/') + '/')});
+
+                   s.qs = function (node) {return new $.ref($.parse(node.as_unescaped_string()))};
+
+                   s.qf = $.reexpander(function (node) {return function_template.replace({_body: $.parse(node.as_unescaped_string())})})})(caterwaul_function.literal_modifiers.string);
+
+    return caterwaul_function}})(caterwaul);
 
 // Generated by SDoc 
 
@@ -1194,6 +1311,12 @@ is_prefix_unary_operator: function () {return has(parse_r, this.data)},         
 
     modifier              ('raise',  $.reexpander('(function () {throw _expression}).call(this)'));
     parameterized_modifier('rescue', $.reexpander('(function () {try {return (_expression)} catch (e) {return (_parameters)}}).call(this)'));
+
+//   Evaluation.
+//   Caterwaul 1.1.2 introduces the 'eval' modifier, which lets you force certain expressions to be evaluated at compile-time. A reference containing the resulting value is dropped into the code,
+//   and any errors are reported as compile-time errors. The expression being evaluated is macroexpanded under the compiling caterwaul function.
+
+    modifier('eval', function (match) {return new $.ref($.compile(this(match._expression)), 'eval')});
 
 // Scoping and referencing.
 // These all impact scope or references somehow -- in other words, they create variable references but don't otherwise impact the nature of evaluation.
@@ -1243,6 +1366,19 @@ is_prefix_unary_operator: function () {return has(parse_r, this.data)},         
 //     alert(x), where[x = 10]
 
     parameterized_modifier('where', $.reexpander('(function () {var _parameters; return (_expression)}).call(this)'));
+
+//   Importation.
+//   This is a fun one. Caterwaul 1.1.2 introduces the 'using' modifier, which lets you statically import an object. For example:
+
+//   | log(x) -using- console              // -> (function () {var log = console.log; return log(x)}).call(this)
+
+//   Variables are computed at compile-time, not at runtime. This is much better than using the 'with' keyword, which degrades performance ('using' has no significant performance impact).
+//   However, the calling context is incomplete, as shown above. In particular, methods of the object that you're using will be called with a global 'this' rather than being bound to the object.
+
+    var scope_template = $.parse('(function () {var _variables; return _expression}).call(this)');
+    parameterized_modifier('using', function (match) {var o = $.compile(this(match._parameters)), comma = new $.syntax(',');
+                                                      for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) comma.push(new $.syntax('=', k, new $.ref(o[k])));
+                                                      return scope_template.replace({_variables: comma.unflatten(), _expression: match._expression})});
 
 // Control flow modifiers.
 // These impact how something gets evaluated.
@@ -1595,7 +1731,261 @@ caterwaul.words(caterwaul.js())(function ($) {
 
 
 
-  caterwaul.js_all = function () {return this.seq(this.words(this.js()))}})();
+  caterwaul.js_all = function () {return this.seq(this.words(this.js_literals(this.js())))}})();
+
+// Generated by SDoc 
+
+// Caterwaul regular expression parser | Spencer Tipping
+// Licensed under the terms of the MIT source code license
+
+// Introduction.
+// This library parses regular expressions into syntax trees. The resulting trees not only describe the structure of the regular expression but also provide information about the strings that it
+// matches. It knows all of the standard Javascript regular expression constructs such as groups, backreferences, lookahead, etc.
+
+// Implementation.
+// Regular expressions support three binary operators. One is the dash, used for character ranges; another is the pipe, which is used for alternatives; and the third is the implicit join
+// operator, used wherever two constructs are adjacent. The pipe has lower precedence than implicit joining, and the dash has higher precedence (though it's not exactly comparable, since it's
+// special only inside a character class and implicit join does something different there).
+
+// This parser interprets regular expressions a little differently than their syntax might suggest. For example:
+
+// | caterwaul.regexp(/foo(?=bar)/).structure()    // -> '("," foo ("(?=" bar))'
+//   caterwaul.regexp(/foo(?:bar)+/).structure()   // -> '("," foo ("+" ("(?:" bar)))'
+//   caterwaul.regexp(/[a-z]/).structure()         // -> '("[" ("-" a z))'
+//   caterwaul.regexp(/[^a-z]/).structure()        // -> '("[^" ("-" a z))'
+//   caterwaul.regexp(/[a-zABC]/).structure()      // -> '("[" ("," ("-" a z) ("," A ("," B C))))
+//   caterwaul.regexp(/[-abc]/).structure()        // -> '("[" ("," - ("," a ("," b c))))
+
+// These syntax trees aren't instances of caterwaul.syntax. Rather, they're instances of caterwaul.regexp.syntax. Normally this isn't an important distinction, since they generally support the
+// same set of methods. (All tree nodes inherit methods from caterwaul.syntax_common.) The only case where it really matters is that you get regexp-specific methods for these trees:
+
+// | caterwaul.regexp(/foo/).minimum_length()      // -> 3
+//   caterwaul.regexp(/foo/).match_groups()        // -> []
+
+// Syntax trees generated by caterwaul.regexp() know some things about the environment in which they were evaluated. For example:
+
+// | caterwaul.regexp(/foo/i).i()                  // -> true
+//   caterwaul.regexp(/^foo/m).m()                 // -> true
+
+// Because these trees are still normal Caterwaul syntax trees, you can do all of the usual matching stuff (just with the caveat that if you want a wildcard you need to use it as a single word
+// inside a (?:) group):
+
+// | caterwaul.regexp(/(?:_a)*/).match(caterwaul.regexp(/a*/))        // -> {_a: a, _: a*}
+
+// Configuration options.
+// You can specify some options after the regexp that you're parsing. These impact how the parser works, sometimes doing things that are semantically incorrect but useful anyway. One such option
+// is 'atom', which can bet set to either 'character' or 'word'. By default it's set to 'character', meaning that each character is considered a separate atom. This is semantically correct, since
+// repetition operators such as + and * apply only to the preceding character.
+
+// However, sometimes you want to consider each word to be its own atom; this is especially useful when building patterns and matching against them. For example:
+
+// | caterwaul.regexp(/_foo _bar+/, {atom: 'word'}).match(caterwaul.regexp(/ab+/))         // -> {_foo: a, _bar: b, _: ab+}
+
+// Setting {atom: 'word'} implies that literal whitespace is removed from the regexp, since otherwise there would be no way to separate words. You can still match space characters by using \x20.
+
+// Supported syntax.
+// This library parses the following constructs (obtained from the Mozilla regular expression documentation: https://developer.mozilla.org/en/JavaScript/Guide/Regular_Expressions):
+
+// | 1. Atoms                      e.g. /foo/, /bar./
+//   2. Zero-width assertions      e.g. /^/, /$/, /\b/, /\B/
+//   3. Repetition                 e.g. /a+/, /b*/, /a+?/, /b*?/, /c{10,20}/, /c{10}/, /c{10,}/, /c{10,20}?/, /c{10,}?/, /d?/
+//   4. Capturing                  e.g. /a(.)c/
+//   5. Non-capturing              e.g. /a(?:.)c/
+//   6. Lookahead                  e.g. /a(?=b)/, /a(?!b)/
+//   7. Disjunction                e.g. /a|b/
+//   8. Character classes          e.g. /[abc]/, /[^abc]/, /[a-df]/
+//   9. Special characters         e.g. /\w\W\s\S\d\D\f\n\r\t\v\0\xff\uffff/
+//  10. Backreferences             e.g. /(a)\1/
+
+// Backreferences have a peculiarity that I wasn't previously aware of. If there are more than ten match groups at the current parse point, then backreferences are parsed as potentially having
+// two digits. Presumably the engine is insightful enough to discard digits that would forms numbers larger than the number of seen match groups, and this parser does that.
+
+caterwaul.js_all()(function ($) {
+  $.regexp(r, options) = $.regexp.parse.apply(this, arguments),
+  $.regexp.syntax      = $.syntax_subclass(regexp_ctor, regexp_methods),
+  $.regexp.parse       = regexp_parse,
+
+  where [// Implementation note:
+         // Copy-constructor functionality is triggered by passing an instance of the tree into its own constructor. The goal is to obtain a new instance of the same kind of tree, but without
+         // any children. This is used by the rmap() method, which needs to build up a parallel tree but will add the children manually. That's what the 'data instanceof this.constructor'
+         // check is all about.
+
+         regexp_ctor(data, context) = data instanceof this.constructor ?
+                                        this -se [it.data = data.data, it.length = 0, it.context = data.context] :
+                                        this -se [it.data = data,      it.length = 0, it.context = context,      Array.prototype.slice.call(arguments, 2) *![it.push(x)] -seq],
+
+         regexp_methods             = {}
+                                 -se [it.i()                     = this.context.flags.i,
+                                      it.m()                     = this.context.flags.m,
+                                      it.g()                     = this.context.flags.g,
+
+                                      it.match_groups()          = this.context.groups,
+
+                                      it.is_zero_width()         = /^[\^\$]$|^\\[Bb]$/.test(this.data) || this.is_positive_lookahead() || this.is_negative_lookahead(),
+                                      it.is_one_or_more()        = /^\+\??$/.test(this.data),
+                                      it.is_zero_or_more()       = /^\*\??$/.test(this.data),
+                                      it.is_optional()           = /^\?$/.test(this.data),
+                                      it.is_non_greedy()         = /.\?$/.test(this.data),
+                                      it.is_repetition()         = /^[\+\*\{]\??$|^\?$/.test(this.data),
+
+                                      it.repeated_child()        = /^\{/.test(this.data) ? this[2] : this[0],
+
+                                      it.is_character_class()    = /^\[/.test(this.data),
+                                      it.is_single_escape()      = /^\\.+$/.test(this.data),
+
+                                      it.is_range()              = /^-$/.test(this.data) && this.length === 2,
+
+                                      it.is_atom()               = ! this.length,
+
+                                      it.is_any_group()          = /^\(/.test(this.data),
+                                      it.is_group()              = /^\($/.test(this.data),
+                                      it.is_forgetful()          = /^\(\?:$/.test(this.data),
+                                      it.is_positive_lookahead() = /^\(\?=$/.test(this.data),
+                                      it.is_negative_lookahead() = /^\(\?!$/.test(this.data),
+
+                                      it.is_backreference()      = /^\\$/.test(this.data),
+                                      it.is_disjunction()        = /^\|$/.test(this.data) && this.length === 2,
+                                      it.is_join()               = /^,$/.test(this.data)  && this.length === 2,
+
+                                      it.lower_limit()           = /^\+\??$/.test(this.data)      ? 1 :
+                                                                   /^\*\??$|^\?$/.test(this.data) ? 0 :
+                                                                   /^\{/.test(this.data)          ? this[0].data :
+                                                                                                    raise [new Error('lower limit is undefined for nonrepetitive node #{this}')],
+
+                                      it.upper_limit()           = /^[\*\+]\??$/.test(this.data) ? Infinity :
+                                                                   /^\?$/.test(this.data)        ? 1 :
+                                                                   /^\{/.test(this.data)         ? this[1].data :
+                                                                                                   raise [new Error('upper limit is undefined for nonrepetitive node #{this}')],
+
+                                      it.minimum_length()        = this.is_zero_width()                                 ? 0 :
+                                                                   this.is_single_escape() || this.is_character_class() ? 1 :
+                                                                   this.is_repetition()                                 ? this.lower_limit() * this.repeated_child().minimum_length() :
+                                                                   this.is_group() || this.is_forgetful()               ? this[0].minimum_length() :
+                                                                   this.is_backreference()                              ? this[1].minimum_length() :
+                                                                   this.is_disjunction()                                ? Math.min(this[0].minimum_length(), this[1].minimum_length()) :
+                                                                   this.is_join()                                       ? this[0].minimum_length() + this[1].minimum_length() :
+                                                                                                                          this.data.length,
+
+                                      it.toString()              = this.is_any_group()                                ? this.data + this[0].toString() + ')' :
+                                                                   this.is_character_class()                          ? this.data + this[0].toString() + ']' :
+                                                                   this.is_range()                                    ? '#{this[0].toString()}-#{this[1].toString()}' :
+                                                                   this.is_zero_or_more() || this.is_one_or_more() ||
+                                                                                             this.is_optional()       ? this[0].toString() + this.data :
+                                                                   this.is_repetition()                               ? this[2].toString() +
+                                                                                                                        (this[0].data === this[1].data ? '{#{this[0].data}}' :
+                                                                                                                         this[1].data === Infinity     ? '{#{this[0].data},}' :
+                                                                                                                                                         '{#{this[0].data},#{this[1].data}}') :
+                                                                   this.is_zero_width()                               ? this.data :
+                                                                   this.is_backreference()                            ? '\\#{this[0].data}' :
+                                                                   this.is_disjunction()                              ? '#{this[0].toString()}|#{this[1].toString()}' :
+                                                                   this.is_join()                                     ? '#{this[0].toString()}#{this[1].toString()}' :
+                                                                   this.is_atom()                                     ? /^\w{2,}$/.test(this.data) ? '(?:#{this.data})' : this.data :
+                                                                                                                        this.data],
+
+         regexp_parse(r, options)   = join(toplevel, end)({i: 0}) -re [it ? it.v[0] : raise [new Error('caterwaul.regexp(): failed to parse #{r.toString()}')]]
+
+                              -where [settings                = $.merge({atom: 'character'}, options),
+
+                                      pieces                  = /^\/(.*)\/([gim]*)$/.exec(r.toString()) || /^(.*)$/.exec(r.toString()),
+                                      s                       = pieces[1],
+                                      flags                   = pieces[2] -re- {i: /i/.test(it), m: /m/.test(it), g: /g/.test(it)},
+                                      context                 = {groups: [], flags: flags},
+
+                                      add_group(node)         = context.groups.push(node),
+
+                                      node(xs = arguments)    = new $.regexp.syntax(xs[0], context) -se- Array.prototype.slice.call(xs, 1) *![it.push(x)] /seq,
+
+                                      // A very small parser combinator library without memoization.
+                                      char(c)(p)              = p.i <  s.length && c.indexOf(s.charAt(p.i)) !== -1 && {v: s.charAt(p.i),            i: p.i + 1},
+                                      string(cs)(p)           = p.i <  s.length && s.substr(p.i, cs.length) === cs && {v: s.substr(p.i, cs.length), i: p.i + cs.length},
+                                      not(n, f)(p)            = p.i >= s.length || f(p) ? false : {v: s.substr(p.i, n), i: p.i + n},
+                                      any(n)(p)               = p.i <  s.length && {v: s.substr(p.i, n), i: p.i + n},
+                                      alt(ps = arguments)(p)  = ps |[x(p)] |seq,
+                                      many(f)(p)              = p /~![f(x) || null] -seq -re- {v: it.slice(1) *[x.v] -seq, i: it[it.length - 1].i} /when [it.length > 1],
+                                      join(ps = arguments)(p) = ps /[p][x0 && x(x0) -se [it && ns.push(it.v)]] -seq -re- {v: ns, i: it.i} /when.it -where [ns = []],
+                                      zero(p)                 = p,
+
+                                      map(parser, f)(p)       = {v: f(result.v), i: result.i} -when.result -where [result = parser(p)],
+
+                                      ident                   = char('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_'),
+                                      digit                   = char('0123456789'),
+                                      hex                     = char('0123456789ABCDEFabcdef'),
+                                      number                  = map(many(digit), given.xs in +xs.join('')),
+
+                                      end(p)                  = p.i === s.length && p,
+
+                                      // Forward definition of recursive rules
+                                      toplevel(p)             = toplevel(p),
+                                      term(p)                 = term(p),
+                                      atom(p)                 = atom(p),
+
+                                      toplevel                = alt(map(join(no_pipes, char('|'), toplevel), given.xs in node('|', xs[0], xs[2])), no_pipes)
+                                                        -where [no_pipes(p) = no_pipes(p),
+                                                                no_pipes    = alt(map(join(term, no_pipes), given.xs in node(',', xs[0], xs[1])), term)],
+
+                                      term                    = alt(map(join(atom, modifiers), given.xs in xs[1] -se- it.push(xs[0])), atom)
+                                                        -where [star          = map(char('*'), node),
+                                                                plus          = map(char('+'), node),
+                                                                question_mark = map(char('?'), node),
+                                                                repetition    = alt(map(join(char('{'), number, char('}')),                    given.xs in node('{', node(xs[1]), node(xs[1]))),
+                                                                                    map(join(char('{'), number, char(','), char('}')),         given.xs in node('{', node(xs[1]), node(Infinity))),
+                                                                                    map(join(char('{'), number, char(','), number, char('}')), given.xs in node('{', node(xs[1]), node(xs[3])))),
+
+                                                                modifier      = alt(star, plus, repetition),    // Deliberately omitting question mark, because it can't be non-greedy
+
+                                                                non_greedy    = char('?'),
+                                                                modifiers     = alt(map(join(modifier, non_greedy), given.xs in xs[0] -se [it.data += xs[1]]),
+                                                                                    modifier,
+                                                                                    question_mark)],
+
+                                      atom                    = base
+                                                        -where [positive_lookahead = map(join(string('(?='), toplevel, string(')')), given.xs in node('(?=', xs[1])),
+                                                                negative_lookahead = map(join(string('(?!'), toplevel, string(')')), given.xs in node('(?!', xs[1])),
+                                                                forgetful_group    = map(join(string('(?:'), toplevel, string(')')), given.xs in node('(?:', xs[1])),
+                                                                group              = map(join(string('('),   toplevel, string(')')), given.xs in node('(',   xs[1]) -se- add_group(it)),
+
+                                                                word               = map(many(ident), given.xs in node(xs.join(''))),
+                                                                word_term          = map(join(string('(?:'), word, string(')')),     given.xs in node(xs[1])),
+
+                                                                character_class(p) = character_class(p),
+                                                                character_class    = alt(map(join(each, character_class), given.xs in node(',', xs[0], xs[1])), each)
+
+                                                                             -where [each = alt(map(join(any(1), char('-'), any(1)), given.xs in node('-', node(xs[0]), node(xs[2]))),
+                                                                                                map(join(char('\\'), any(1)),        given.xs in node(xs.join(''))),
+                                                                                                map(not(1, char(']')),               node))],
+
+                                                                character_not_in   = map(join(string('[^'),  character_class, string(']')), given.xs in node('[^', xs[1])),
+                                                                character_in       = map(join(string('['),   character_class, string(']')), given.xs in node('[',  xs[1])),
+
+                                                                zero_width         = map(char('^$'), node),
+                                                                escaped            = map(join(char('\\'), char('BbWwSsDdfnrtv0*+.?|()[]{}\\$^')), given.xs in node(xs.join(''))),
+                                                                escaped_slash      = map(string('\\/'),                                           given.x  in node('/')),
+
+                                                                control            = map(join(string('\\c'), any(1)),             given.xs in node(xs.join(''))),
+                                                                hex_code           = map(join(string('\\x'), hex, hex),           given.xs in node(xs.join(''))),
+                                                                unicode            = map(join(string('\\u'), hex, hex, hex, hex), given.xs in node(xs.join(''))),
+
+                                                                // Fun stuff: Is the backreference within bounds? If not, then reject the second digit. This requires direct style rather than
+                                                                // combinatory, since the parser's behavior changes as the parse is happening.
+                                                                backreference(p)   = map(join(char('\\'), digit, digit), given.xs in +'#{xs[1]}#{xs[2]}')(p)
+                                                                                     -re [it && it.v <= context.groups.length ? {v: node('\\', node(it.v), context.groups[it.v]), i: it.i} :
+                                                                                                                                single_digit_backreference(p)]
+
+                                                                             -where [single_digit_backreference = map(join(char('\\'), digit),
+                                                                                                                      given.xs in node('\\', node(+xs[1]), context.groups[+xs[1]]))],
+
+                                                                dot                = map(char('.'), node),
+                                                                other              = map(not(1, char(')|+*?{')), node),
+
+                                                                maybe_word         = settings.atom === 'word' ? alt(map(many(ident), given.xs in node(xs.join(''))), other) :
+                                                                                                                other,
+
+                                                                maybe_munch_spaces = settings.atom === 'word' ? alt(many(char(' ')), zero) : zero,
+
+                                                                base               = map(join(maybe_munch_spaces, alt(positive_lookahead, negative_lookahead, forgetful_group, group,
+                                                                                                                      character_not_in, character_in, zero_width, escaped, escaped_slash,
+                                                                                                                      control, hex_code, unicode, backreference, dot, maybe_word)),
+                                                                                         given.xs in xs[1])]]]})(caterwaul);
 
 // Generated by SDoc 
 
@@ -1614,17 +2004,21 @@ caterwaul.words(caterwaul.js())(function ($) {
 // This is a generalization of parser combinators onto nonlinear data structures such as trees or graphs (though it also works with strings). The idea is that a location within a data structure
 // doesn't have to be scalar, though it generally would be when parsing text. In order to define a combinatory parser over a structure, you need to do a few things:
 
-// | 1. Construct a memoization key. This is a function from the input position to a string.
-//   2. Provide parser combinators that return new states. Most of the higher-order combinators are general that they will work with low-level combinators.
-//   3. Provide a function that constructs the initial location given an input. For strings, this is just f(s) = 0.
+// | 1. Construct a memoization key. This is a function from the input position to a string. Not all parsers are memoized; returning null indicates that memoization shouldn't happen.
+//   2. Provide parser combinators that return new states. Most of the higher-order combinators are general in that they will work with low-level combinators.
+//   3. Provide a function that constructs the initial location(s) given an input. For strings, this is just f(s) = [0].
 //   4. Provide a function that takes a given state and returns a list of forward adjacent states. For strings, this is f(i) = [i + 1].
 
-// Because this parser combinator library implements a non-backtracking Packrat parser, the usual nondeterminism caveats apply.
+// Because this parser combinator library implements a non-backtracking packrat parser, the usual nondeterminism caveats apply.
 
 // Implementation specifics.
 // Unlike some parser combinator implementations, this one provides a way to specify detailed failure information. This gives the user an idea about why and where a parse failed. Also unlike many
 // Javascript parser combinator libraries, this one uses Caterwaul macros to make it easy to build up grammars. Each operator corresponds to a higher-order combinator provided by the Caterwaul
 // parsing library.
+
+// The definitions above require that the graph is directed, but it is allowed to be cyclic. Perhaps more interestingly, it can also be infinite provided that the parse rules have
+// appropriately-defined termination conditions. This means that you could theoretically use these parser combinators to identify properties of continuous vector fields or other non-discrete
+// directed structures.
 
 // Nonlinear parsing.
 // Let's suppose that we want to assign scopes to all local variables in a Caterwaul parse tree. This can be done by manually iterating over the tree, but it can also be set up as a parser that
@@ -1635,6 +2029,40 @@ caterwaul.words(caterwaul.js())(function ($) {
 //   local_or_assignment = alternative(identifier, map(assignment, given.x in x[0]))
 
 // Obviously the prefix notation here is cumbersome. Nonlinear parser combinators are generally denoted differently, using operators and/or regular expressions.
+
+//   Linear paths.
+//   Let's assume that we're parsing over a strictly hierarchical tree and that we start at the root (mainly for ease of thought; I think this example is fully general to all DAGs with exactly
+//   one in-degree-zero node). We want to parse from the top to the bottom, accumulating all paths that are parseable as arithmetic expressions. So, for example, we might have a tree that looks
+//   like this:
+
+//   |         (3)
+//            /   \
+//          (+)   (4)
+//          /     / \
+//        (4)   (+) (6)
+//       /   \
+//     (*)   (5)
+//      |     |
+//     (4)   (+)
+
+//   Since we're working with a tree, we know that the 'forward' function returns an array of a node's children. So each parse step is really a list of alternatives. Parsing the 'next character'
+//   or 'next X' amounts to flat-mapping across forward motions. This will probably make more sense with an example:
+
+//   | expression = term '+' expression | term
+//     term       = number '*' term | number
+
+//   Starting with 'expression', we parse this way, starting with the roots (in this case, only one):
+
+//   | expression(root) = expression( (3) ) -> term( (3) ) -> number( (3) ) -> 3           <- at this point, we've consumed (3) and should move to the next inputs.
+//                          '*'( (+) ) | '+'( (+) ) -> +                                   <- use disjunction to ascend to matching terminal; advance to next inputs.
+//                            expression( (4) ) -> term( (4) ) -> number( (4) ) -> 4       <- right-recursion into expression(), advance.
+//                              '*'( (*) ) -> *                                            <- matching within the term() expansion
+//                                term( (4) ) -> number( (4) ) -> 4                        <- second term() within the term() above
+//                              '*'( (5) ) | '+'( (5) ) -> fail                            <- no match here; reject this subtree
+//                          '*'( (4) ) | '+'( (4) ) -> fail                                <- no match here; reject this subtree
+
+//   At the end we have an array of the only surviving alternative, (3 + (4 * 4)). (Presumably the parser combinators are configured to construct parse trees.) This is basically a linear parse
+//   that removed alternatives as it went; the result was an array of valid parse trees.
 // Generated by SDoc 
 
 
