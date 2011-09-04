@@ -2009,8 +2009,7 @@ caterwaul.js_all()(function ($) {
 
 // | 1. Construct a memoization key. This is a function from the input position to a string. Not all parsers are memoized; returning null indicates that memoization shouldn't happen.
 //   2. Provide parser combinators that return new states. Most of the higher-order combinators are general in that they will work with low-level combinators.
-//   3. Provide a function that constructs the initial location(s) given an input. For strings, this is just f(s) = [0].
-//   4. Provide a function that takes a given state and returns a list of forward adjacent states. For strings, this is f(i) = [i + 1].
+//   3. Provide a function that takes a distance and returns a list of forward states of that distance. For strings, this is next(n) = [this.offset + n].
 
 // Because this parser combinator library implements a non-backtracking packrat parser, the usual nondeterminism caveats apply.
 
@@ -2072,9 +2071,7 @@ caterwaul.js_all()(function ($) {
 // appropriately-defined termination conditions. This means that you could theoretically use these parser combinators to identify properties of continuous vector fields or other non-discrete
 // directed structures.
 
-  $.parser = {},
-
-  $.merge($.parser, capture [
+  $.parser = capture [
 
 //   Traversal combinators.
 //   Linear parser combinator libraries generally implement a 'seq' or 'join' combinator that causes one parser to be activated and then followed by another one. Because there is only one path to
@@ -2085,22 +2082,24 @@ caterwaul.js_all()(function ($) {
 //   search for a single solution and assume that none will devolve into infinite recursion. Some return all solutions, others abandon further searching after a single solution is found. As such,
 //   this parser library implements several different join combinators that embody these different behaviors.
 
-    bfs(ps = arguments)(states) = ps /[states][x(x0)] -seq,
+    bfs(ps = arguments)(states) = ps /[states][memo(x, x0)] -seq,
 
 //   Choice combinators.
 //   Nonlinearity provides choice among inputs, but we still need combinators to choose grammar productions. There isn't anything particularly remarkable about this library's implementation of
 //   choice combinators; they are logically identical to the ones used in linear parsing expression grammars.
 
-    alt(ps = arguments)(states) = states *~!state[ps |[x(state) -re [it.length && it]] |seq || []] -seq,
+    alt(ps = arguments)(states) = states *~!state[ps |[memo(x, state) -re [it.length && it]] |seq || []] -seq,
 
 //   Repetition combinators.
 //   Because there are multiple types of joining, repetition is not as simple as it is for a linear parser. However, repetition can be expressed as recursion and a join:
 
 //   | repeat(parser) = R -> parser R | parser
 
-//   This library's repetition combinator takes two parameters. One is the parser to be repeated, and the other is the join combinator that is used to connect it to the recursive step.
+//   This library's repetition combinator takes two parameters. One is the parser to be repeated, and the other is the join combinator that is used to connect it to the recursive step. Note that
+//   the output of many() is a right-folded set of binary joins. The funky f(states) = f(states) statement just sets up a temporary function that will proxy to the real 'f' when we redefine it.
+//   This way we have access to 'f' both before and after it exists (and it will do the same thing in either case).
 
-    many(p, join) = f -where [f(states) = alt(join(p, f), p)],
+    many(p, join) = f -where [f(states) = f(states), f = $.parser.alt($.parser.join(p, f), p)],
 
 //   Trivial combinators.
 //   Most combinator libraries are modeled to have separate zero-or-more, one-or-more, and zero-or-one functions. This one is different in that it provides a universal zero combinator that
@@ -2112,22 +2111,78 @@ caterwaul.js_all()(function ($) {
 //   Zero-length combinators.
 //   These don't impact the parse state in any way, but they can cause a parse to fail by rejecting certain branches. They are more commonly known as lookahead combinators.
 
-    match(p)(states)  = states % [p([x]).length] -seq,
-    reject(p)(states) = states %![p([x]).length] -seq,
+    match(p)(states)  = states % [memo(p, [x]).length] -seq,
+    reject(p)(states) = states %![memo(p, [x]).length] -seq,
 
 //   Pluralization combinator.
 //   This is used to adapt linear terminal combinators to be used in a nonlinear context. It assumes that the linear combinator maps a truthy parse state into either another truthy parse state or
 //   a null value.
 
-    pluralize(p)(states) = states %~!p -seq]),
+    pluralize(p)(states) = states %~!p -seq],
 
 // Data type drivers.
 // This is where we tie the parsers to actual data types. Each data type driver should provide these methods:
 
-// | 1. id()               returns an optional memoization key, which is a string
-//   2. next()             returns an array containing forward steps
-//   3. map(f(x))          returns an identical state whose result value is mapped through f
+// | 1. id()               returns an optional memoization key, which is a string -- should be unique for each input position
+//   2. input()            returns the input structure, which the combinators must know how to use
+//   3. position()         returns the current position within the input structure, which the combinators must know how to use
+//   4. next(n)            returns an array containing forward steps
+//   5. map(f(x))          returns an identical state whose result value is mapped through f
+//   6. memo_table()       returns a consistent reference to the memo table for this parse (the table is just a regular object)
 
+//   String driver.
+//   This is a probably-linear parser. I say probably because it's simple enough to implement a subclass of it that jumps around within the string. However, we don't assume that initially; for
+//   our purposes we just define a linear, forward string traversal pattern.
+
+    $.merge(($.parser.linear_string(s, offset, value, memo_table) = this -se [it.s      = s,
+                                                                              it.offset = offset     || 0,
+                                                                              it.value  = value      || null,
+                                                                              it.table  = memo_table || {}]).prototype,
+    capture [id()         = offset,
+             input()      = s,
+             position()   = this.offset,
+             next(n)      = [new this.constructor(this.s, this.offset + n, this.value, this.table)],
+             map(f)       = new this.constructor(this.s, this.offset, f(this.value), this.table),
+             memo_table() = this.table]),
+
+//   String combinators.
+//   Whether you're using linear or nonlinear parsing, you'll probably want some terminal string combinators to work with. These are all regexp-based, hence the requirement on Caterwaul's regexp
+//   parsing extension. Note that this parser is plural, not singular; you won't need to use the pluralize() function with it.
+
+//   Note that regexp() works only in a sequential linear context. If you're doing things like jumping around a string within a single parse step, then you'll need to precompute the jumps by
+//   generating a new string and then parsing against that. (I'm doing it this way for performance in the most common case.) Alternatively, you can write a new regexp() parser combinator that is
+//   aware of jumping.
+
+//   Regular expression matching has worst-case O(n log n) time complexity, where n is the match length. This is done by bisecting the match region until we identify the longest possible match.
+//   It's possible to do this because we know up-front the minimum match length; Caterwaul's regexp library provides this. We then double this until the match fails or we run off the end of the
+//   string. Then we bisect between the minimum and the failure length until we find the point at which the match fails.
+
+    $.merge($.parser,
+    capture [regexp(r) = matcher -where [minimum_length   = $.regexp(r).minimum_length(),
+                                         matcher(states)  = states %~!match_one -seq,
+                                         match_one(state) = new_state -where [s              = state.input(),
+                                                                              offset         = state.position(),
+                                                                              maximum_length = s.length - offset,
+                                                                              match(l)       = l < maximum_length && r.test(s.substr(offset, l)),
+                                                                              possible_match = match(minimum_length),
+                                                                              longest(l)     = match(l) ? longest(l << 1) : l,
+                                                                              valid(l, m, u) = l < u - 1 ? match(m) ? valid(m, m + u >> 1, u) : valid(l, l + m >> 1, m) : m,
+                                                                              new_state      = possible_match && state.next(longest(minimum_length) -re-
+                                                                                                                            valid(minimum_length, minimum_length + it >> 1, it))]]]),
+
+// Memoization.
+// This happens at the combinator level. Each combinator generated by the parser is assigned a unique identifier (this happens automatically), and that identifier is then used to track the
+// memoization partition.
+
+  where [memoization_key       = $.gensym(),
+         memo_count            = 0,
+
+         memo_single(f, state) = value -where [f_key = f[memoization_key] || (f[memoization_key] = ++memo_count),
+                                               table = state.memo_table(),
+                                               key   = '#{state.id()}_#{f_key}',
+                                               value = table.hasOwnProperty(key) ? table[key] : (table[key] = f(state))],
+
+         memo(f, states)       = states *[memo_single(f, x)] -seq]})(caterwaul);
 
 
 // Generated by SDoc 
