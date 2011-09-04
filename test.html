@@ -2009,7 +2009,7 @@ caterwaul.js_all()(function ($) {
 
 // | 1. Construct a memoization key. This is a function from the input position to a string. Not all parsers are memoized; returning null indicates that memoization shouldn't happen.
 //   2. Provide parser combinators that return new states. Most of the higher-order combinators are general in that they will work with low-level combinators.
-//   3. Provide a function that takes a distance and returns a list of forward states of that distance. For strings, this is next(n) = [this.offset + n].
+//   3. Provide a function that takes a distance and a value, and returns a list of forward states of that distance that have that value.
 
 // Because this parser combinator library implements a non-backtracking packrat parser, the usual nondeterminism caveats apply.
 
@@ -2082,7 +2082,11 @@ caterwaul.js_all()(function ($) {
 //   search for a single solution and assume that none will devolve into infinite recursion. Some return all solutions, others abandon further searching after a single solution is found. As such,
 //   this parser library implements several different join combinators that embody these different behaviors.
 
+//   Different combinators do different things with the parse values. As a convention, combinators ending with 's' are searches that just return the final values. Combinators ending in 'c' are
+//   collectors that return all of the intermediate values as arrays.
+
     bfs(ps = arguments)(states) = ps /[states][memo(x, x0)] -seq,
+    bfc(ps = arguments)(states) = ps /~[states *[[x]] -seq][x0 *~!~states[memo(x, states[states.length - 1]) *[states.concat(x)]]] *[x[x.length - 1].map(given.v in x *[x.value()] -seq)] -seq,
 
 //   Choice combinators.
 //   Nonlinearity provides choice among inputs, but we still need combinators to choose grammar productions. There isn't anything particularly remarkable about this library's implementation of
@@ -2126,9 +2130,10 @@ caterwaul.js_all()(function ($) {
 // | 1. id()               returns an optional memoization key, which is a string -- should be unique for each input position
 //   2. input()            returns the input structure, which the combinators must know how to use
 //   3. position()         returns the current position within the input structure, which the combinators must know how to use
-//   4. next(n)            returns an array containing forward steps
-//   5. map(f(x))          returns an identical state whose result value is mapped through f
-//   6. memo_table()       returns a consistent reference to the memo table for this parse (the table is just a regular object)
+//   4. value()            returns the current result value
+//   5. next(n, v)         returns an array containing forward steps, each of which has the value 'v'
+//   6. map(f(x))          returns an identical state whose result value is mapped through f
+//   7. memo_table()       returns a consistent reference to the memo table for this parse (the table is just a regular object)
 
 //   String driver.
 //   This is a probably-linear parser. I say probably because it's simple enough to implement a subclass of it that jumps around within the string. However, we don't assume that initially; for
@@ -2136,13 +2141,14 @@ caterwaul.js_all()(function ($) {
 
     $.merge(($.parser.linear_string(s, offset, value, memo_table) = this -se [it.s      = s,
                                                                               it.offset = offset     || 0,
-                                                                              it.value  = value      || null,
+                                                                              it.v      = value      || null,
                                                                               it.table  = memo_table || {}]).prototype,
-    capture [id()         = offset,
-             input()      = s,
+    capture [id()         = this.offset,
+             input()      = this.s,
              position()   = this.offset,
-             next(n)      = [new this.constructor(this.s, this.offset + n, this.value, this.table)],
-             map(f)       = new this.constructor(this.s, this.offset, f(this.value), this.table),
+             value()      = this.v,
+             next(n, v)   = [new this.constructor(this.s, this.offset + n, v, this.table)],
+             map(f)       = new this.constructor(this.s, this.offset, f(this.v), this.table),
              memo_table() = this.table]),
 
 //   String combinators.
@@ -2157,24 +2163,32 @@ caterwaul.js_all()(function ($) {
 //   It's possible to do this because we know up-front the minimum match length; Caterwaul's regexp library provides this. We then double this until the match fails or we run off the end of the
 //   string. Then we bisect between the minimum and the failure length until we find the point at which the match fails.
 
-    $.merge($.parser,
-    capture [regexp(r) = matcher -where [minimum_length   = $.regexp(r).minimum_length(),
-                                         matcher(states)  = states %~!match_one -seq,
-                                         match_one(state) = new_state -where [s              = state.input(),
-                                                                              offset         = state.position(),
-                                                                              maximum_length = s.length - offset,
-                                                                              match(l)       = l < maximum_length && r.test(s.substr(offset, l)),
-                                                                              possible_match = match(minimum_length),
-                                                                              longest(l)     = match(l) ? longest(l << 1) : l,
-                                                                              valid(l, m, u) = l < u - 1 ? match(m) ? valid(m, m + u >> 1, u) : valid(l, l + m >> 1, m) : m,
-                                                                              new_state      = possible_match && state.next(longest(minimum_length) -re-
-                                                                                                                            valid(minimum_length, minimum_length + it >> 1, it))]]]),
+    $.merge($.parser, capture [linear_string(s)(states) = states %~![x.input().substr(x.offset(), s.length) === s && x.next(s.length, s)] -seq,
+
+                               linear_regexp(r)         = matcher -where [minimum_length   = $.regexp(r).minimum_length(),
+                                                                          matcher(states)  = states %~!match_one -seq,
+                                                                          match_one(state) = new_state
+                                                                                     -where [s              = state.input(),
+                                                                                             offset         = state.position(),
+                                                                                             maximum_length = s.length - offset,
+
+                                                                                             match(l)       = l < maximum_length && r.test(s.substr(offset, l)),
+                                                                                             possible_match = match(minimum_length),
+                                                                                             longest(l)     = match(l) ? longest(l << 1) : l,
+                                                                                             valid(l, m, u) = l < u - 1 ? match(m) ? valid(m, m + u >> 1, u) : valid(l, l + m >> 1, m) : m,
+
+                                                                                             new_state      = possible_match &&
+                                                                                                              state.next(longest(minimum_length) -re-
+                                                                                                                         valid(minimum_length, minimum_length + it >> 1, it))]]]),
+
+//   Structure driver.
+//   This is used when you have a set of objects and/or arrays. The idea is to traverse the structure from the top down in some way, optionally collecting path information as you go.
 
 // Memoization.
 // This happens at the combinator level. Each combinator generated by the parser is assigned a unique identifier (this happens automatically), and that identifier is then used to track the
 // memoization partition.
 
-  where [memoization_key       = $.gensym(),
+  where [memoization_key       = $.gensym('memo'),
          memo_count            = 0,
 
          memo_single(f, state) = value -where [f_key = f[memoization_key] || (f[memoization_key] = ++memo_count),
@@ -2183,7 +2197,6 @@ caterwaul.js_all()(function ($) {
                                                value = table.hasOwnProperty(key) ? table[key] : (table[key] = f(state))],
 
          memo(f, states)       = states *[memo_single(f, x)] -seq]})(caterwaul);
-
 
 // Generated by SDoc 
 
