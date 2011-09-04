@@ -84,13 +84,13 @@ caterwaul.js_all()(function ($) {
 //   collectors that return all of the intermediate values as arrays.
 
     bfs(ps = arguments)(states) = ps /[states][memo(x, x0)] -seq,
-    bfc(ps = arguments)(states) = ps /~[states *[[x]] -seq][x0 *~!~states[memo(x, states[states.length - 1]) *[states.concat(x)]]] *[x[x.length - 1].map(given.v in x *[x.value()] -seq)] -seq,
+    bfc(ps = arguments)(states) = ps /~[states *[[x]] -seq][x0 *~!~states[memo(x, states[states.length - 1]) *[states.concat(x)]]] *[x[x.length - 1].map("_ *[x.value()] -seq".qf)] -seq,
 
 //   Choice combinators.
 //   Nonlinearity provides choice among inputs, but we still need combinators to choose grammar productions. There isn't anything particularly remarkable about this library's implementation of
 //   choice combinators; they are logically identical to the ones used in linear parsing expression grammars.
 
-    alt(ps = arguments)(states) = states *~!state[ps |[memo(x, state) -re [it.length && it]] |seq || []] -seq,
+    alt(ps = arguments)(states) = states *~!state[ps |[x /-memo/ state -re [it.length && it]] |seq || []] -seq,
 
 //   Repetition combinators.
 //   Because there are multiple types of joining, repetition is not as simple as it is for a linear parser. However, repetition can be expressed as recursion and a join:
@@ -101,7 +101,7 @@ caterwaul.js_all()(function ($) {
 //   the output of many() is a right-folded set of binary joins. The funky f(states) = f(states) statement just sets up a temporary function that will proxy to the real 'f' when we redefine it.
 //   This way we have access to 'f' both before and after it exists (and it will do the same thing in either case).
 
-    many(p, join) = f -where [f(states) = f(states), f = $.parser.alt($.parser.join(p, f), p)],
+    many(p, join) = f -where [f(states) = f(states), f = p /-$.parser.join/ f /-$.parser.alt/ p],
 
 //   Trivial combinators.
 //   Most combinator libraries are modeled to have separate zero-or-more, one-or-more, and zero-or-one functions. This one is different in that it provides a universal zero combinator that
@@ -137,17 +137,12 @@ caterwaul.js_all()(function ($) {
 //   This is a probably-linear parser. I say probably because it's simple enough to implement a subclass of it that jumps around within the string. However, we don't assume that initially; for
 //   our purposes we just define a linear, forward string traversal pattern.
 
-    $.merge(($.parser.linear_string(s, offset, value, memo_table) = this -se [it.s      = s,
-                                                                              it.offset = offset     || 0,
-                                                                              it.v      = value      || null,
-                                                                              it.table  = memo_table || {}]).prototype,
+    $.merge(($.parser.linear_string_state(s, offset, value, memo_table) = this -se [it.s      = s,            it.v      = value      || null,
+                                                                                    it.offset = offset || 0,  it.table  = memo_table || {}]).prototype,
     capture [id()         = this.offset,
-             input()      = this.s,
-             position()   = this.offset,
-             value()      = this.v,
-             next(n, v)   = [new this.constructor(this.s, this.offset + n, v, this.table)],
-             map(f)       = new this.constructor(this.s, this.offset, f(this.v), this.table),
-             memo_table() = this.table]),
+             input()      = this.s,       next(n, v)   = [new this.constructor(this.s, this.offset + n, v, this.table)],
+             position()   = this.offset,  map(f)       = new this.constructor(this.s, this.offset, f(this.v), this.table),
+             value()      = this.v,       memo_table() = this.table]),
 
 //   String combinators.
 //   Whether you're using linear or nonlinear parsing, you'll probably want some terminal string combinators to work with. These are all regexp-based, hence the requirement on Caterwaul's regexp
@@ -161,39 +156,65 @@ caterwaul.js_all()(function ($) {
 //   It's possible to do this because we know up-front the minimum match length; Caterwaul's regexp library provides this. We then double this until the match fails or we run off the end of the
 //   string. Then we bisect between the minimum and the failure length until we find the point at which the match fails.
 
-    $.merge($.parser, capture [linear_string(s)(states) = states %~![x.input().substr(x.offset(), s.length) === s && x.next(s.length, s)] -seq,
+    $.merge($.parser, capture [anchor_regexp(r) = new RegExp('^#{body}$', flags) -where [pieces = /^\/(.*)\/(\w*)$/.exec(r.toString()), body = pieces[1], flags = pieces[2]],
 
+                               linear_string(s)(states) = states %~![x.input().substr(x.offset(), s.length) === s && x.next(s.length, s)] -seq,
                                linear_regexp(r)         = matcher -where [minimum_length   = $.regexp(r).minimum_length(),
+                                                                          anchored         = $.parser.anchor_regexp(r),
                                                                           matcher(states)  = states %~!match_one -seq,
-                                                                          match_one(state) = new_state
+                                                                          match_one(state) = new_states
                                                                                      -where [s              = state.input(),
                                                                                              offset         = state.position(),
                                                                                              maximum_length = s.length - offset,
 
-                                                                                             match(l)       = l < maximum_length && r.test(s.substr(offset, l)),
-                                                                                             possible_match = match(minimum_length),
+                                                                                             match(l)       = l < maximum_length && anchored.test(s.substr(offset, l)),
                                                                                              longest(l)     = match(l) ? longest(l << 1) : l,
-                                                                                             valid(l, m, u) = l < u - 1 ? match(m) ? valid(m, m + u >> 1, u) : valid(l, l + m >> 1, m) : m,
+                                                                                             valid(l, m, u) = l < u - 1 ? match(m) ? valid(m, m + u >> 1, u) :
+                                                                                                                                     valid(l, l + m >> 1, m) : m,
 
-                                                                                             new_state      = possible_match &&
-                                                                                                              state.next(longest(minimum_length) -re-
-                                                                                                                         valid(minimum_length, minimum_length + it >> 1, it))]]]),
+                                                                                             new_states     = state.next(match_length, anchored.exec(s.substr(offset, match_length)))
+                                                                                                              -where [max          = longest(minimum_length),
+                                                                                                                      match_length = valid(minimum_length, minimum_length + max >> 1, max)]
+                                                                                                              -when- match(minimum_length)]]]),
 
 //   Structure driver.
-//   This is used when you have a set of objects and/or arrays. The idea is to traverse the structure from the top down in some way, optionally collecting path information as you go.
+//   This is used when you have a set of objects and/or arrays. The idea is to traverse the structure from the top down in some way, optionally collecting path-related information. Atoms, then,
+//   are the keys that dereference elements in the structure.
+
+    $.merge(($.parser.structure_state(o, k, value, memo_table) = this -se [it.o = o,          it.v     = value      || null,
+                                                                           it.k = k || null,  it.table = memo_table || {}]).prototype,
+    capture [id()       = this.cached_id || (this.cached_id = ++memo_id),
+             input()    = this.o,  next(n, v)   = n === 1 ? o /pairs *[new this.constructor(x[1], x[0], v, this.table)] -seq : this.next(n - 1, v) *~![x.next(1, v)] -seq,
+             position() = this.k,  map(f)       = new this.constructor(this.o, this.k, f(this.v), memo_table),
+             value()    = this.v,  memo_table() = this.table]),
+
+//   Structure combinators.
+//   Unlike string combinators, some of these are based on position and others are based on value predicates. This is due to the common use case for structural parsing: we want to traverse some
+//   structure and manipulate values based on some property of their paths. Terminal combinators, then, accept or reject paths based on their current position. What we actually need is a
+//   higher-order combinator that maps the current state's position into value-space. More generally, we need a proxy for a state that can map any aspect of that state into its value space.
+
+    $.merge(($.parser.proxy_state(s, value_function) = this -se [it.state = s, it.value_function = value_function]).prototype,
+
+    capture [id() = this.cached_id || (this.cached_id = ++memo_id),
+             input()    = this.value_function.call(this),  next(n, v)   = this.state.next(n, v),
+             position() = this.state.position(),           map(f)       = this.state.map(f),
+             value()    = this.state.value(),              memo_table() = this.state.memo_table()]),
+
+    $.merge($.parser, capture [position_state(s)   = new $.parser.proxy_state(s, "_.position()".qf),
+                               position(p)(states) = p(states *$.parser.position_state -seq)]),
 
 // Memoization.
 // This happens at the combinator level. Each combinator generated by the parser is assigned a unique identifier (this happens automatically), and that identifier is then used to track the
 // memoization partition.
 
   where [memoization_key       = $.gensym('memo'),
-         memo_count            = 0,
+         memo_id               = 0,
 
-         memo_single(f, state) = value -where [f_key = f[memoization_key] || (f[memoization_key] = ++memo_count),
+         memo_single(f, state) = value -where [f_key = f[memoization_key] || (f[memoization_key] = ++memo_id),
                                                table = state.memo_table(),
                                                key   = '#{state.id()}_#{f_key}',
                                                value = table.hasOwnProperty(key) ? table[key] : (table[key] = f(state))],
 
-         memo(f, states)       = states *[memo_single(f, x)] -seq]})(caterwaul);
+         memo(f, states)       = states *[f /-memo_single/ x] -seq]})(caterwaul);
 
 // Generated by SDoc 

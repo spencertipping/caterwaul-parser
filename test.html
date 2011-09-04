@@ -1108,6 +1108,22 @@ is_prefix_unary_operator: function () {return has(parse_r, this.data)},         
 
         function_destructure = function (node) {return function_args_rule.call(this, node) || function_rule.call(this, node)};
 
+//   Infix function application.
+//   Caterwaul 1.1.2 introduces infix function notation, which lets the user avoid grouping constructs. It locates anything of the form x /-f/ y or x |-f| y and converts it into f(x, y). The
+//   notation is vaguely borrowed from Haskell, though due to Javascript's limitations it doesn't look as good.
+
+//   You can change the minus sign to a tilde to get n-ary flattening; that is, x /~f/ y / z / ... becomes f(x, y, z, ...). (Normally it left-associates into binary applications.) The same goes
+//   for vertical bar syntax.
+
+    var infix_function_slash = $.rereplacer('_x /-_f/ _y', '_f(_x, _y)'), infix_function_bar = $.rereplacer('_x |-_f| _y', '_f(_x, _y)'),
+
+        infix_function_flat  = $.reexpander(function (node) {var match = node.data === '/' && node.flatten('/') || node.data === '|' && node.flatten('|'), l = match && match.length, c;
+                                                             if (l > 2 && match[1].data === 'u~' && (fn = match[1][0])) {
+                                                               for (var result = new $.syntax(',', match[0]), i = 2; i < l; ++i) result.push(match[i]);
+                                                               return new $.syntax('()', match[1][0], result.unflatten())}}),
+
+        infix_function       = function (node) {return infix_function_flat.call(this, node) || infix_function_slash.call(this, node) || infix_function_bar.call(this, node)};
+
 //   Literal modification.
 //   Caterwaul 1.1.2 introduces literal modification, which provides ways to reinterpret various types of literals at compile-time. These are always written as postfix property accesses, e.g.
 //   /foo bar/.x -- here, 'x' is the modifier. Cool as it would be to be able to stack modifiers up, right now Caterwaul doesn't support this. Part of the reason is that I'm too lazy/uninsightful
@@ -1190,7 +1206,7 @@ is_prefix_unary_operator: function () {return has(parse_r, this.data)},         
 //   function (which will be called lots of times).
 
     var each_node = function (node) {return string_interpolator.call(this, node) || literal_modifier.call(this, node) ||
-                                            node.length && (modifier.call(this, node) || function_destructure.call(this, node))},
+                                            node.length && (infix_function.call(this, node) || modifier.call(this, node) || function_destructure.call(this, node))},
 
         result    = macroexpander ? $(function (node) {return macroexpander.call(this, node) || each_node.call(this, node)}) :
                                     $(each_node);
@@ -1806,7 +1822,7 @@ caterwaul.words(caterwaul.js())(function ($) {
 
 caterwaul.js_all()(function ($) {
   $.regexp(r, options) = $.regexp.parse.apply(this, arguments),
-  $.regexp.syntax      = $.syntax_subclass(regexp_ctor, regexp_methods),
+  $.regexp.syntax      = regexp_ctor /-$.syntax_subclass/ regexp_methods,
   $.regexp.parse       = regexp_parse,
 
   where [// Implementation note:
@@ -1865,7 +1881,7 @@ caterwaul.js_all()(function ($) {
                                                                          this.is_repetition()                                 ? this.lower_limit() * this.repeated_child().minimum_length() :
                                                                          this.is_group() || this.is_forgetful()               ? this[0].minimum_length() :
                                                                          this.is_backreference()                              ? this[1].minimum_length() :
-                                                                         this.is_disjunction()                                ? Math.min(this[0].minimum_length(), this[1].minimum_length()) :
+                                                                         this.is_disjunction()                                ? this[0].minimum_length() /-Math.min/ this[1].minimum_length() :
                                                                          this.is_join()                                       ? this[0].minimum_length() + this[1].minimum_length() :
                                                                                                                                 this.data.length,
 
@@ -1887,7 +1903,7 @@ caterwaul.js_all()(function ($) {
 
          regexp_parse(r, options)   = join(toplevel, end)({i: 0}) -re [it ? it.v[0] : raise [new Error('caterwaul.regexp(): failed to parse #{r.toString()}')]]
 
-                              -where [settings                = $.merge({atom: 'character'}, options),
+                              -where [settings                = {atom: 'character'} /-$.merge/ options,
 
                                       pieces                  = /^\/(.*)\/([gim]*)$/.exec(r.toString()) || /^(.*)$/.exec(r.toString()),
                                       s                       = pieces[1],
@@ -1913,7 +1929,7 @@ caterwaul.js_all()(function ($) {
                                       ident                   = char('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_'),
                                       digit                   = char('0123456789'),
                                       hex                     = char('0123456789ABCDEFabcdef'),
-                                      number                  = map(many(digit), given.xs in +xs.join('')),
+                                      number                  = many(digit) /-map/ "+_.join('')".qf,
 
                                       end(p)                  = p.i === s.length && p,
 
@@ -1922,73 +1938,71 @@ caterwaul.js_all()(function ($) {
                                       term(p)                 = term(p),
                                       atom(p)                 = atom(p),
 
-                                      toplevel                = alt(map(join(no_pipes, char('|'), toplevel), given.xs in node('|', xs[0], xs[2])), no_pipes)
+                                      toplevel                = map(no_pipes /~join/char('|') /toplevel, "node('|', _[0], _[2])".qf) /-alt/ no_pipes
                                                         -where [no_pipes(p) = no_pipes(p),
-                                                                no_pipes    = alt(map(join(term, no_pipes), given.xs in node(',', xs[0], xs[1])), term)],
+                                                                no_pipes    = map(term /-join/ no_pipes, "node(',', _[0], _[1])".qf) /-alt/ term],
 
-                                      term                    = alt(map(join(atom, modifiers), given.xs in xs[1] -se- it.push(xs[0])), atom)
-                                                        -where [star          = map(char('*'), node),
-                                                                plus          = map(char('+'), node),
-                                                                question_mark = map(char('?'), node),
-                                                                repetition    = alt(map(join(char('{'), number, char('}')),                    given.xs in node('{', node(xs[1]), node(xs[1]))),
-                                                                                    map(join(char('{'), number, char(','), char('}')),         given.xs in node('{', node(xs[1]), node(Infinity))),
-                                                                                    map(join(char('{'), number, char(','), number, char('}')), given.xs in node('{', node(xs[1]), node(xs[3])))),
+                                      term                    = map(atom /-join/ modifiers, "_[1] -se- it.push(_[0])".qf) /-alt/ atom
+                                                        -where [star          = char('*') /-map/ node,
+                                                                plus          = char('+') /-map/ node,
+                                                                question_mark = char('?') /-map/ node,
+                                                                repetition    = map(char('{') /~join/number /char('}'),                    "node('{', node(_[1]), node(_[1]))".qf) /~alt/
+                                                                                map(char('{') /~join/number /char(',') /char('}'),         "node('{', node(_[1]), node(Infinity))".qf) /
+                                                                                map(char('{') /~join/number /char(',') /number /char('}'), "node('{', node(_[1]), node(_[3]))".qf),
 
-                                                                modifier      = alt(star, plus, repetition),    // Deliberately omitting question mark, because it can't be non-greedy
+                                                                modifier      = star /~alt/plus /repetition,    // Deliberately omitting question mark, because it can't be non-greedy
 
                                                                 non_greedy    = char('?'),
-                                                                modifiers     = alt(map(join(modifier, non_greedy), given.xs in xs[0] -se [it.data += xs[1]]),
-                                                                                    modifier,
-                                                                                    question_mark)],
+                                                                modifiers     = map(modifier /-join/ non_greedy, "_[0] -se [it.data += _[1]]".qf) /~alt/modifier /question_mark],
 
                                       atom                    = base
-                                                        -where [positive_lookahead = map(join(string('(?='), toplevel, string(')')), given.xs in node('(?=', xs[1])),
-                                                                negative_lookahead = map(join(string('(?!'), toplevel, string(')')), given.xs in node('(?!', xs[1])),
-                                                                forgetful_group    = map(join(string('(?:'), toplevel, string(')')), given.xs in node('(?:', xs[1])),
-                                                                group              = map(join(string('('),   toplevel, string(')')), given.xs in node('(',   xs[1]) -se- add_group(it)),
+                                                        -where [positive_lookahead = map(string('(?=') /~join/toplevel /string(')'), "node('(?=', _[1])".qf),
+                                                                negative_lookahead = map(string('(?!') /~join/toplevel /string(')'), "node('(?!', _[1])".qf),
+                                                                forgetful_group    = map(string('(?:') /~join/toplevel /string(')'), "node('(?:', _[1])".qf),
+                                                                group              = map(string('(')   /~join/toplevel /string(')'), "node('(',   _[1]) -se- add_group(it)".qf),
 
-                                                                word               = map(many(ident), given.xs in node(xs.join(''))),
-                                                                word_term          = map(join(string('(?:'), word, string(')')),     given.xs in node(xs[1])),
+                                                                word               = map(many(ident),                                "node(_.join(''))".qf),
+                                                                word_term          = map(string('(?:') /~join/word /string(')'),     "node(_[1])".qf),
 
                                                                 character_class(p) = character_class(p),
-                                                                character_class    = alt(map(join(each, character_class), given.xs in node(',', xs[0], xs[1])), each)
+                                                                character_class    = map(each /-join/ character_class, "node(',', _[0], _[1])".qf) /-alt/ each
 
-                                                                             -where [each = alt(map(join(any(1), char('-'), any(1)), given.xs in node('-', node(xs[0]), node(xs[2]))),
-                                                                                                map(join(char('\\'), any(1)),        given.xs in node(xs.join(''))),
-                                                                                                map(not(1, char(']')),               node))],
+                                                                             -where [each = map(any(1) /~join/char('-') /any(1), "node('-', node(_[0]), node(_[2]))".qf) /~alt/
+                                                                                            map(char('\\') /-join/ any(1),       "node(_.join(''))".qf) /
+                                                                                            map(not(1, char(']')),               node)],
 
-                                                                character_not_in   = map(join(string('[^'),  character_class, string(']')), given.xs in node('[^', xs[1])),
-                                                                character_in       = map(join(string('['),   character_class, string(']')), given.xs in node('[',  xs[1])),
+                                                                character_not_in   = map(string('[^') /~join/character_class /string(']'), "node('[^', _[1])".qf),
+                                                                character_in       = map(string('[')  /~join/character_class /string(']'), "node('[',  _[1])".qf),
 
-                                                                zero_width         = map(char('^$'), node),
-                                                                escaped            = map(join(char('\\'), char('BbWwSsDdfnrtv0*+.?|()[]{}\\$^')), given.xs in node(xs.join(''))),
-                                                                escaped_slash      = map(string('\\/'),                                           given.x  in node('/')),
+                                                                zero_width         = char('^$') /-map/ node,
+                                                                escaped            = map(join(char('\\'), char('BbWwSsDdfnrtv0*+.?|()[]{}\\$^')), "node(_.join(''))".qf),
+                                                                escaped_slash      = map(string('\\/'),                                           "node('/')".qf),
 
-                                                                control            = map(join(string('\\c'), any(1)),             given.xs in node(xs.join(''))),
-                                                                hex_code           = map(join(string('\\x'), hex, hex),           given.xs in node(xs.join(''))),
-                                                                unicode            = map(join(string('\\u'), hex, hex, hex, hex), given.xs in node(xs.join(''))),
+                                                                control            = map(string('\\c') /-join/ any(1),            "node(_.join(''))".qf),
+                                                                hex_code           = map(string('\\x') /~join/hex /hex,           "node(_.join(''))".qf),
+                                                                unicode            = map(string('\\u') /~join/hex /hex /hex /hex, "node(_.join(''))".qf),
 
                                                                 // Fun stuff: Is the backreference within bounds? If not, then reject the second digit. This requires direct style rather than
                                                                 // combinatory, since the parser's behavior changes as the parse is happening.
-                                                                backreference(p)   = map(join(char('\\'), digit, digit), given.xs in +'#{xs[1]}#{xs[2]}')(p)
+                                                                backreference(p)   = map(char('\\') /~join/digit /digit, "+'#{_[1]}#{_[2]}'".qf)(p)
                                                                                      -re [it && it.v <= context.groups.length ? {v: node('\\', node(it.v), context.groups[it.v]), i: it.i} :
                                                                                                                                 single_digit_backreference(p)]
 
-                                                                             -where [single_digit_backreference = map(join(char('\\'), digit),
+                                                                             -where [single_digit_backreference = map(char('\\') /-join/ digit,
                                                                                                                       given.xs in node('\\', node(+xs[1]), context.groups[+xs[1]]))],
 
-                                                                dot                = map(char('.'), node),
-                                                                other              = map(not(1, char(')|+*?{')), node),
+                                                                dot                = char('.')              /-map/ node,
+                                                                other              = not(1, char(')|+*?{')) /-map/ node,
 
-                                                                maybe_word         = settings.atom === 'word' ? alt(map(many(ident), given.xs in node(xs.join(''))), other) :
+                                                                maybe_word         = settings.atom === 'word' ? map(many(ident), "node(_.join(''))".qf) /-alt/ other :
                                                                                                                 other,
 
-                                                                maybe_munch_spaces = settings.atom === 'word' ? alt(many(char(' ')), zero) : zero,
+                                                                maybe_munch_spaces = settings.atom === 'word' ? many(char(' ')) /-alt/ zero : zero,
 
-                                                                base               = map(join(maybe_munch_spaces, alt(positive_lookahead, negative_lookahead, forgetful_group, group,
-                                                                                                                      character_not_in, character_in, zero_width, escaped, escaped_slash,
-                                                                                                                      control, hex_code, unicode, backreference, dot, maybe_word)),
-                                                                                         given.xs in xs[1])]]]})(caterwaul);
+                                                                base               = map(maybe_munch_spaces /-join/ alt(positive_lookahead, negative_lookahead, forgetful_group, group,
+                                                                                                                        character_not_in, character_in, zero_width, escaped, escaped_slash,
+                                                                                                                        control, hex_code, unicode, backreference, dot, maybe_word),
+                                                                                         "_[1]".qf)]]]})(caterwaul);
 
 // Generated by SDoc 
 
@@ -2086,13 +2100,13 @@ caterwaul.js_all()(function ($) {
 //   collectors that return all of the intermediate values as arrays.
 
     bfs(ps = arguments)(states) = ps /[states][memo(x, x0)] -seq,
-    bfc(ps = arguments)(states) = ps /~[states *[[x]] -seq][x0 *~!~states[memo(x, states[states.length - 1]) *[states.concat(x)]]] *[x[x.length - 1].map(given.v in x *[x.value()] -seq)] -seq,
+    bfc(ps = arguments)(states) = ps /~[states *[[x]] -seq][x0 *~!~states[memo(x, states[states.length - 1]) *[states.concat(x)]]] *[x[x.length - 1].map("_ *[x.value()] -seq".qf)] -seq,
 
 //   Choice combinators.
 //   Nonlinearity provides choice among inputs, but we still need combinators to choose grammar productions. There isn't anything particularly remarkable about this library's implementation of
 //   choice combinators; they are logically identical to the ones used in linear parsing expression grammars.
 
-    alt(ps = arguments)(states) = states *~!state[ps |[memo(x, state) -re [it.length && it]] |seq || []] -seq,
+    alt(ps = arguments)(states) = states *~!state[ps |[x /-memo/ state -re [it.length && it]] |seq || []] -seq,
 
 //   Repetition combinators.
 //   Because there are multiple types of joining, repetition is not as simple as it is for a linear parser. However, repetition can be expressed as recursion and a join:
@@ -2103,7 +2117,7 @@ caterwaul.js_all()(function ($) {
 //   the output of many() is a right-folded set of binary joins. The funky f(states) = f(states) statement just sets up a temporary function that will proxy to the real 'f' when we redefine it.
 //   This way we have access to 'f' both before and after it exists (and it will do the same thing in either case).
 
-    many(p, join) = f -where [f(states) = f(states), f = $.parser.alt($.parser.join(p, f), p)],
+    many(p, join) = f -where [f(states) = f(states), f = p /-$.parser.join/ f /-$.parser.alt/ p],
 
 //   Trivial combinators.
 //   Most combinator libraries are modeled to have separate zero-or-more, one-or-more, and zero-or-one functions. This one is different in that it provides a universal zero combinator that
@@ -2139,17 +2153,12 @@ caterwaul.js_all()(function ($) {
 //   This is a probably-linear parser. I say probably because it's simple enough to implement a subclass of it that jumps around within the string. However, we don't assume that initially; for
 //   our purposes we just define a linear, forward string traversal pattern.
 
-    $.merge(($.parser.linear_string(s, offset, value, memo_table) = this -se [it.s      = s,
-                                                                              it.offset = offset     || 0,
-                                                                              it.v      = value      || null,
-                                                                              it.table  = memo_table || {}]).prototype,
+    $.merge(($.parser.linear_string_state(s, offset, value, memo_table) = this -se [it.s      = s,            it.v      = value      || null,
+                                                                                    it.offset = offset || 0,  it.table  = memo_table || {}]).prototype,
     capture [id()         = this.offset,
-             input()      = this.s,
-             position()   = this.offset,
-             value()      = this.v,
-             next(n, v)   = [new this.constructor(this.s, this.offset + n, v, this.table)],
-             map(f)       = new this.constructor(this.s, this.offset, f(this.v), this.table),
-             memo_table() = this.table]),
+             input()      = this.s,       next(n, v)   = [new this.constructor(this.s, this.offset + n, v, this.table)],
+             position()   = this.offset,  map(f)       = new this.constructor(this.s, this.offset, f(this.v), this.table),
+             value()      = this.v,       memo_table() = this.table]),
 
 //   String combinators.
 //   Whether you're using linear or nonlinear parsing, you'll probably want some terminal string combinators to work with. These are all regexp-based, hence the requirement on Caterwaul's regexp
@@ -2163,40 +2172,66 @@ caterwaul.js_all()(function ($) {
 //   It's possible to do this because we know up-front the minimum match length; Caterwaul's regexp library provides this. We then double this until the match fails or we run off the end of the
 //   string. Then we bisect between the minimum and the failure length until we find the point at which the match fails.
 
-    $.merge($.parser, capture [linear_string(s)(states) = states %~![x.input().substr(x.offset(), s.length) === s && x.next(s.length, s)] -seq,
+    $.merge($.parser, capture [anchor_regexp(r) = new RegExp('^#{body}$', flags) -where [pieces = /^\/(.*)\/(\w*)$/.exec(r.toString()), body = pieces[1], flags = pieces[2]],
 
+                               linear_string(s)(states) = states %~![x.input().substr(x.offset(), s.length) === s && x.next(s.length, s)] -seq,
                                linear_regexp(r)         = matcher -where [minimum_length   = $.regexp(r).minimum_length(),
+                                                                          anchored         = $.parser.anchor_regexp(r),
                                                                           matcher(states)  = states %~!match_one -seq,
-                                                                          match_one(state) = new_state
+                                                                          match_one(state) = new_states
                                                                                      -where [s              = state.input(),
                                                                                              offset         = state.position(),
                                                                                              maximum_length = s.length - offset,
 
-                                                                                             match(l)       = l < maximum_length && r.test(s.substr(offset, l)),
-                                                                                             possible_match = match(minimum_length),
+                                                                                             match(l)       = l < maximum_length && anchored.test(s.substr(offset, l)),
                                                                                              longest(l)     = match(l) ? longest(l << 1) : l,
-                                                                                             valid(l, m, u) = l < u - 1 ? match(m) ? valid(m, m + u >> 1, u) : valid(l, l + m >> 1, m) : m,
+                                                                                             valid(l, m, u) = l < u - 1 ? match(m) ? valid(m, m + u >> 1, u) :
+                                                                                                                                     valid(l, l + m >> 1, m) : m,
 
-                                                                                             new_state      = possible_match &&
-                                                                                                              state.next(longest(minimum_length) -re-
-                                                                                                                         valid(minimum_length, minimum_length + it >> 1, it))]]]),
+                                                                                             new_states     = state.next(match_length, anchored.exec(s.substr(offset, match_length)))
+                                                                                                              -where [max          = longest(minimum_length),
+                                                                                                                      match_length = valid(minimum_length, minimum_length + max >> 1, max)]
+                                                                                                              -when- match(minimum_length)]]]),
 
 //   Structure driver.
-//   This is used when you have a set of objects and/or arrays. The idea is to traverse the structure from the top down in some way, optionally collecting path information as you go.
+//   This is used when you have a set of objects and/or arrays. The idea is to traverse the structure from the top down in some way, optionally collecting path-related information. Atoms, then,
+//   are the keys that dereference elements in the structure.
+
+    $.merge(($.parser.structure_state(o, k, value, memo_table) = this -se [it.o = o,          it.v     = value      || null,
+                                                                           it.k = k || null,  it.table = memo_table || {}]).prototype,
+    capture [id()       = this.cached_id || (this.cached_id = ++memo_id),
+             input()    = this.o,  next(n, v)   = n === 1 ? o /pairs *[new this.constructor(x[1], x[0], v, this.table)] -seq : this.next(n - 1, v) *~![x.next(1, v)] -seq,
+             position() = this.k,  map(f)       = new this.constructor(this.o, this.k, f(this.v), memo_table),
+             value()    = this.v,  memo_table() = this.table]),
+
+//   Structure combinators.
+//   Unlike string combinators, some of these are based on position and others are based on value predicates. This is due to the common use case for structural parsing: we want to traverse some
+//   structure and manipulate values based on some property of their paths. Terminal combinators, then, accept or reject paths based on their current position. What we actually need is a
+//   higher-order combinator that maps the current state's position into value-space. More generally, we need a proxy for a state that can map any aspect of that state into its value space.
+
+    $.merge(($.parser.proxy_state(s, value_function) = this -se [it.state = s, it.value_function = value_function]).prototype,
+
+    capture [id() = this.cached_id || (this.cached_id = ++memo_id),
+             input()    = this.value_function.call(this),  next(n, v)   = this.state.next(n, v),
+             position() = this.state.position(),           map(f)       = this.state.map(f),
+             value()    = this.state.value(),              memo_table() = this.state.memo_table()]),
+
+    $.merge($.parser, capture [position_state(s)   = new $.parser.proxy_state(s, "_.position()".qf),
+                               position(p)(states) = p(states *$.parser.position_state -seq)]),
 
 // Memoization.
 // This happens at the combinator level. Each combinator generated by the parser is assigned a unique identifier (this happens automatically), and that identifier is then used to track the
 // memoization partition.
 
   where [memoization_key       = $.gensym('memo'),
-         memo_count            = 0,
+         memo_id               = 0,
 
-         memo_single(f, state) = value -where [f_key = f[memoization_key] || (f[memoization_key] = ++memo_count),
+         memo_single(f, state) = value -where [f_key = f[memoization_key] || (f[memoization_key] = ++memo_id),
                                                table = state.memo_table(),
                                                key   = '#{state.id()}_#{f_key}',
                                                value = table.hasOwnProperty(key) ? table[key] : (table[key] = f(state))],
 
-         memo(f, states)       = states *[memo_single(f, x)] -seq]})(caterwaul);
+         memo(f, states)       = states *[f /-memo_single/ x] -seq]})(caterwaul);
 
 // Generated by SDoc 
 
