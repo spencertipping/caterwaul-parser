@@ -3901,9 +3901,9 @@ memoization partition.
          memo_single(f, state) = value -where [f_key = f[memoization_key] || (f[memoization_key] = ++memo_id),
                                                table = state.memo_table(),
                                                key   = '#{state.id()}_#{f_key}',
-                                               value = table.hasOwnProperty(key) ? table[key] : (table[key] = f(state))],
+                                               value = table.hasOwnProperty(key) ? table[key] : (table[key] = f([state]))],
 
-         memo(f, states)       = states *[f /-memo_single/ x] -seq]})(caterwaul);
+         memo(f, states)       = states *~![f /-memo_single/ x] -seq]})(caterwaul);
 
 __
 meta::sdoc('js::repl', <<'__');
