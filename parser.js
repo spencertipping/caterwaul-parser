@@ -83,7 +83,7 @@ caterwaul.js_all()(function ($) {
 //   Different combinators do different things with the parse values. As a convention, combinators ending with 's' are searches that just return the final values. Combinators ending in 'c' are
 //   collectors that return all of the intermediate values as arrays.
 
-    bfs(ps = arguments)(states) = ps /[states][memo(x, x0)] -seq,
+    bfs(ps = arguments)(states) = ps /[states][x /-memo/ x0] -seq,
     bfc(ps = arguments)(states) = ps /~[states *[[x]] -seq][x0 *~!~states[memo(x, states[states.length - 1]) *[states.concat(x)]]] *[x[x.length - 1].map("_ *[x.value()] -seq".qf)] -seq,
 
 //   Choice combinators.
@@ -137,15 +137,15 @@ caterwaul.js_all()(function ($) {
 //   This is a probably-linear parser. I say probably because it's simple enough to implement a subclass of it that jumps around within the string. However, we don't assume that initially; for
 //   our purposes we just define a linear, forward string traversal pattern.
 
-    $.merge(($.parser.linear_string_state(s, offset, value, memo_table) = this -se [it.s      = s,            it.v      = value      || null,
-                                                                                    it.offset = offset || 0,  it.table  = memo_table || {}]).prototype,
+    $.merge(($.parser.linear_string_state(s, offset, value, memo_table) = this -se [it.s      = s,            it.v     = value      || null,
+                                                                                    it.offset = offset || 0,  it.table = memo_table || {}]).prototype,
     capture [id()         = this.offset,
              input()      = this.s,       next(n, v)   = [new this.constructor(this.s, this.offset + n, v, this.table)],
              position()   = this.offset,  map(f)       = new this.constructor(this.s, this.offset, f(this.v), this.table),
              value()      = this.v,       memo_table() = this.table]),
 
 //   String combinators.
-//   Whether you're using linear or nonlinear parsing, you'll probably want some terminal string combinators to work with. These are all regexp-based, hence the requirement on Caterwaul's regexp
+//   Whether you're using linear or nonlinear parsing, you'll probably want some terminal string combinators to work with. These are all regexp-based, hence the dependency on Caterwaul's regexp
 //   parsing extension. Note that this parser is plural, not singular; you won't need to use the pluralize() function with it.
 
 //   Note that regexp() works only in a sequential linear context. If you're doing things like jumping around a string within a single parse step, then you'll need to precompute the jumps by
@@ -158,24 +158,24 @@ caterwaul.js_all()(function ($) {
 
     $.merge($.parser, capture [anchor_regexp(r) = new RegExp('^#{body}$', flags) -where [pieces = /^\/(.*)\/(\w*)$/.exec(r.toString()), body = pieces[1], flags = pieces[2]],
 
-                               linear_string(s)(states) = states %~![x.input().substr(x.offset(), s.length) === s && x.next(s.length, s)] -seq,
+                               linear_string(s)(states) = states *~![x.input().substr(x.position(), s.length) === s ? x.next(s.length, s) : []] -seq,
                                linear_regexp(r)         = matcher -where [minimum_length   = $.regexp(r).minimum_length(),
                                                                           anchored         = $.parser.anchor_regexp(r),
-                                                                          matcher(states)  = states %~!match_one -seq,
+                                                                          matcher(states)  = states *~!match_one -seq,
                                                                           match_one(state) = new_states
                                                                                      -where [s              = state.input(),
                                                                                              offset         = state.position(),
                                                                                              maximum_length = s.length - offset,
 
-                                                                                             match(l)       = l < maximum_length && anchored.test(s.substr(offset, l)),
+                                                                                             match(l)       = l <= maximum_length && anchored.test(s.substr(offset, l)),
                                                                                              longest(l)     = match(l) ? longest(l << 1) : l,
-                                                                                             valid(l, m, u) = l < u - 1 ? match(m) ? valid(m, m + u >> 1, u) :
-                                                                                                                                     valid(l, l + m >> 1, m) : m,
+                                                                                             valid(l, m, u) = l < u - 1 ? match(m) ? valid(m, m + u >> 1, u) : valid(l, l + m >> 1, m) : m,
 
-                                                                                             new_states     = state.next(match_length, anchored.exec(s.substr(offset, match_length)))
-                                                                                                              -where [max          = longest(minimum_length),
-                                                                                                                      match_length = valid(minimum_length, minimum_length + max >> 1, max)]
-                                                                                                              -when- match(minimum_length)]]]),
+                                                                                             new_states     = match(minimum_length) ?
+                                                                                                                state.next(match_length, anchored.exec(s.substr(offset, match_length)))
+                                                                                                                -where [max          = longest(minimum_length),
+                                                                                                                        match_length = valid(minimum_length, minimum_length + max >> 1, max)] :
+                                                                                                                []]]]),
 
 //   Structure driver.
 //   This is used when you have a set of objects and/or arrays. The idea is to traverse the structure from the top down in some way, optionally collecting path-related information. Atoms, then,
@@ -195,12 +195,12 @@ caterwaul.js_all()(function ($) {
 
     $.merge(($.parser.proxy_state(s, value_function) = this -se [it.state = s, it.value_function = value_function]).prototype,
 
-    capture [id() = this.cached_id || (this.cached_id = ++memo_id),
+    capture [id()       = this.cached_id || (this.cached_id = ++memo_id),
              input()    = this.value_function.call(this),  next(n, v)   = this.state.next(n, v),
              position() = this.state.position(),           map(f)       = this.state.map(f),
              value()    = this.state.value(),              memo_table() = this.state.memo_table()]),
 
-    $.merge($.parser, capture [position_state(s)   = new $.parser.proxy_state(s, "_.position()".qf),
+    $.merge($.parser, capture [position_state(s)   = new $.parser.proxy_state(s, "this.position()".qf),
                                position(p)(states) = p(states *$.parser.position_state -seq)]),
 
 // Memoization.

@@ -1992,7 +1992,7 @@ caterwaul.words(caterwaul.js())(function ($) {
                             seq_pattern                            = anon('S[_x]'),
                             promote_seq(f)                         = seq_pattern.replace({_x: f}),
 
-                            parse_body(tree, expand, normal, init) = ((r = block_with_seq.match(tree))               ? parse_body(r._x, expand, sequence_context_normal, init) :
+                            parse_body(tree, expand, normal, init) = ((r = block_with_seq.match(tree))               ? parse_body(r._x, expand, sequence_context_normal, sequence_context_init) :
                                                                       (r = block_with_closure.match(tree))           ? parse_body(r._x, expand, wrapping_normal, wrapping_init) :
 
                                                                       (r = block_with_variable_and_init.match(tree)) ? init(r._x, r._init, prefixed_names(r._var)) :
@@ -2002,13 +2002,14 @@ caterwaul.words(caterwaul.js())(function ($) {
                                                                       (r = block.match(tree))                        ? normal(r._x, standard_names) :
                                                                                                                        normal(promote_function(tree), standard_names))
 
-                                                                     -where [in_sequence_context(f)                   = expand.call(expand, promote_seq(f)),
-                                                                             sequence_context_normal(f, names)        = normal(in_sequence_context(f), names),
+                                                                     -where [in_sequence_context(f)                           = expand.call(expand, promote_seq(f)),
+                                                                             sequence_context_normal(f, names)                = normal(in_sequence_context(f), names),
+                                                                             sequence_context_init(f, init_expression, names) = init  (in_sequence_context(f), init_expression, names),
 
-                                                                             wrapping_normal(f, names)                = normal(close_body(names, f), names),
-                                                                             wrapping_init(f, init_expression, names) = init  (close_body(names, f), init_expression, names),
+                                                                             wrapping_normal(f, names)                        = normal(close_body(names, f), names),
+                                                                             wrapping_init(f, init_expression, names)         = init  (close_body(names, f), init_expression, names),
 
-                                                                             r                                        = null],
+                                                                             r                                                = null],
                             // Modifier parsing
                             tbang_modifier = anon('~!_x'),
                             bang_modifier  = anon('!_x'),
@@ -3325,10 +3326,10 @@ parent::/home/spencertipping/bin/repository                 50b3981a563910cc2f2e
 parent::/home/spencertipping/conjectures/perl-objects/js    67e8e3410e9b195d2b43f6c446042e3c
 parent::/home/spencertipping/conjectures/perl-objects/sdoc  f938653251b89b98cbcc26c713a2dae7
 parent::preprocessor                                        4695da77689b5766150749851560c16e
-sdoc::html::test                                            cd424b7ebc2854e04300b1ad5b97e4fe
+sdoc::html::test                                            69631229b55eddc4f7402badb13f4fe1
 sdoc::js::dependencies                                      f98fdf7af0dc93d98f0392aff155c9cf
 sdoc::js::modules                                           2ff90d3bfe72d95e62d6bbfc4e99273c
-sdoc::js::repl                                              65ac86867013f72cffcd6b9b3465df09
+sdoc::js::repl                                              6f0ab89ffc6f682b69f536d733c2d9d5
 sdoc::js::test                                              eea2d2f5909703e105fe1373ea4b1757
 
 __
@@ -3653,7 +3654,7 @@ meta::sdoc('html::test', <<'__');
       - pinclude pp::js::dependencies
       - pinclude pp::js::modules
 
-      var t = function (x) {$('body').append($('<div>').text(x + ' -> ' + test_case(x)))};
+      var t = function () {$('body').append($('<div>').text(Array.prototype.join.call(arguments, ', ') + ' -> ' + test_case.apply(this, arguments)))};
 
       $(function () {
         - pinclude pp::js::test
@@ -3770,7 +3771,7 @@ directed structures.
   Different combinators do different things with the parse values. As a convention, combinators ending with 's' are searches that just return the final values. Combinators ending in 'c' are
   collectors that return all of the intermediate values as arrays.
 
-    bfs(ps = arguments)(states) = ps /[states][memo(x, x0)] -seq,
+    bfs(ps = arguments)(states) = ps /[states][x /-memo/ x0] -seq,
     bfc(ps = arguments)(states) = ps /~[states *[[x]] -seq][x0 *~!~states[memo(x, states[states.length - 1]) *[states.concat(x)]]] *[x[x.length - 1].map("_ *[x.value()] -seq".qf)] -seq,
 
   Choice combinators.
@@ -3824,15 +3825,15 @@ This is where we tie the parsers to actual data types. Each data type driver sho
   This is a probably-linear parser. I say probably because it's simple enough to implement a subclass of it that jumps around within the string. However, we don't assume that initially; for
   our purposes we just define a linear, forward string traversal pattern.
 
-    $.merge(($.parser.linear_string_state(s, offset, value, memo_table) = this -se [it.s      = s,            it.v      = value      || null,
-                                                                                    it.offset = offset || 0,  it.table  = memo_table || {}]).prototype,
+    $.merge(($.parser.linear_string_state(s, offset, value, memo_table) = this -se [it.s      = s,            it.v     = value      || null,
+                                                                                    it.offset = offset || 0,  it.table = memo_table || {}]).prototype,
     capture [id()         = this.offset,
              input()      = this.s,       next(n, v)   = [new this.constructor(this.s, this.offset + n, v, this.table)],
              position()   = this.offset,  map(f)       = new this.constructor(this.s, this.offset, f(this.v), this.table),
              value()      = this.v,       memo_table() = this.table]),
 
   String combinators.
-  Whether you're using linear or nonlinear parsing, you'll probably want some terminal string combinators to work with. These are all regexp-based, hence the requirement on Caterwaul's regexp
+  Whether you're using linear or nonlinear parsing, you'll probably want some terminal string combinators to work with. These are all regexp-based, hence the dependency on Caterwaul's regexp
   parsing extension. Note that this parser is plural, not singular; you won't need to use the pluralize() function with it.
 
   Note that regexp() works only in a sequential linear context. If you're doing things like jumping around a string within a single parse step, then you'll need to precompute the jumps by
@@ -3845,24 +3846,24 @@ This is where we tie the parsers to actual data types. Each data type driver sho
 
     $.merge($.parser, capture [anchor_regexp(r) = new RegExp('^#{body}$', flags) -where [pieces = /^\/(.*)\/(\w*)$/.exec(r.toString()), body = pieces[1], flags = pieces[2]],
 
-                               linear_string(s)(states) = states %~![x.input().substr(x.offset(), s.length) === s && x.next(s.length, s)] -seq,
+                               linear_string(s)(states) = states *~![x.input().substr(x.position(), s.length) === s ? x.next(s.length, s) : []] -seq,
                                linear_regexp(r)         = matcher -where [minimum_length   = $.regexp(r).minimum_length(),
                                                                           anchored         = $.parser.anchor_regexp(r),
-                                                                          matcher(states)  = states %~!match_one -seq,
+                                                                          matcher(states)  = states *~!match_one -seq,
                                                                           match_one(state) = new_states
                                                                                      -where [s              = state.input(),
                                                                                              offset         = state.position(),
                                                                                              maximum_length = s.length - offset,
 
-                                                                                             match(l)       = l < maximum_length && anchored.test(s.substr(offset, l)),
+                                                                                             match(l)       = l <= maximum_length && anchored.test(s.substr(offset, l)),
                                                                                              longest(l)     = match(l) ? longest(l << 1) : l,
-                                                                                             valid(l, m, u) = l < u - 1 ? match(m) ? valid(m, m + u >> 1, u) :
-                                                                                                                                     valid(l, l + m >> 1, m) : m,
+                                                                                             valid(l, m, u) = l < u - 1 ? match(m) ? valid(m, m + u >> 1, u) : valid(l, l + m >> 1, m) : m,
 
-                                                                                             new_states     = state.next(match_length, anchored.exec(s.substr(offset, match_length)))
-                                                                                                              -where [max          = longest(minimum_length),
-                                                                                                                      match_length = valid(minimum_length, minimum_length + max >> 1, max)]
-                                                                                                              -when- match(minimum_length)]]]),
+                                                                                             new_states     = match(minimum_length) ?
+                                                                                                                state.next(match_length, anchored.exec(s.substr(offset, match_length)))
+                                                                                                                -where [max          = longest(minimum_length),
+                                                                                                                        match_length = valid(minimum_length, minimum_length + max >> 1, max)] :
+                                                                                                                []]]]),
 
   Structure driver.
   This is used when you have a set of objects and/or arrays. The idea is to traverse the structure from the top down in some way, optionally collecting path-related information. Atoms, then,
@@ -3882,12 +3883,12 @@ This is where we tie the parsers to actual data types. Each data type driver sho
 
     $.merge(($.parser.proxy_state(s, value_function) = this -se [it.state = s, it.value_function = value_function]).prototype,
 
-    capture [id() = this.cached_id || (this.cached_id = ++memo_id),
+    capture [id()       = this.cached_id || (this.cached_id = ++memo_id),
              input()    = this.value_function.call(this),  next(n, v)   = this.state.next(n, v),
              position() = this.state.position(),           map(f)       = this.state.map(f),
              value()    = this.state.value(),              memo_table() = this.state.memo_table()]),
 
-    $.merge($.parser, capture [position_state(s)   = new $.parser.proxy_state(s, "_.position()".qf),
+    $.merge($.parser, capture [position_state(s)   = new $.parser.proxy_state(s, "this.position()".qf),
                                position(p)(states) = p(states *$.parser.position_state -seq)]),
 
 Memoization.
@@ -3915,8 +3916,8 @@ We need to load dependencies and the extension modules.
 Unit tests.
 These are loaded automatically each time you boot up the REPL. This makes it easy to see when something has gone wrong.
 
-var t = function (x) {try       {console.log(x + ' \033[1;32m' + test_case(x) + '\033[0;0m')}
-                      catch (e) {console.log(x + ' \033[1;31m' + e            + '\033[0;0m')}};
+var t = function () {try       {console.log(Array.prototype.join.call(arguments, ', ') + ' \033[1;32m' + test_case.apply(this, arguments) + '\033[0;0m')}
+                     catch (e) {console.log(Array.prototype.join.call(arguments, ', ') + ' \033[1;31m' + e                                + '\033[0;0m')}};
 
 - pinclude pp::js::test
 
@@ -3931,10 +3932,13 @@ Unit tests.
 These are quick, visible assertions to make sure that the setup works properly. The test_case function is called automatically by t(), which is customized to work on whatever platform you're
 running under (e.g. node.js or a browser).
 
-test_case = function (parser, input) {return parser(input).value()};
-
 caterwaul.js_all()(function () {
-  t(linear_regexp(/foo/) /-bfs/ linear_regexp(/bar/), new linear_string_state('foobar')),
+  test_case(parser, input) = parser(input) *[x.value()] -seq,
+
+  linear_string('foo')                             |-t| [new linear_string_state('foo')],
+  linear_regexp(/foo/)                             |-t| [new linear_string_state('foo')],
+  linear_regexp(/foo/) /-bfs/ linear_regexp(/bar/) |-t| [new linear_string_state('foobar')],
+  linear_regexp(/foo/) /-bfc/ linear_regexp(/bar/) |-t| [new linear_string_state('foobar')],
 
   using [caterwaul.parser]}, {t: t})();
 
