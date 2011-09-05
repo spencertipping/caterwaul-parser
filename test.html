@@ -2121,13 +2121,13 @@ caterwaul.js_all()(function ($) {
 //   tricky given that we're potentially cloning them on every step. Simpler, though less performant, is to construct a new array for each step.
 
     bfs(ps = arguments)(states) = ps /[states][x /-memo/ x0] -seq,
-    bfc(ps = arguments)(states) = ps /~p[states *[[x]] -seq][p0 *~!~row[memo(p, [row[row.length - 1]]) *~!~[row + [x]]]] *row[row[row.length - 1].map("row *[x.value()] -seq".qf)] -seq,
+    bfc(ps = arguments)(states) = ps /~p[states *[[x]] -seq][p0 *~!~row[memo_single(p, row[row.length - 1]) *~[row + [x]]]] *row[row[row.length - 1].map("row.slice(1) *[x.value()] -seq".qf)] -seq,
 
 //   Choice combinators.
 //   Nonlinearity provides choice among inputs, but we still need combinators to choose grammar productions. There isn't anything particularly remarkable about this library's implementation of
 //   choice combinators; they are logically identical to the ones used in linear parsing expression grammars.
 
-    alt(ps = arguments)(states) = states *~!state[ps |[x /-memo/ state -re [it.length && it]] |seq || []] -seq,
+    alt(ps = arguments)(states) = states *~!state[ps |[x /-memo_single/ state -re [it.length && it]] |seq || []] -seq,
 
 //   Repetition combinators.
 //   Because there are multiple types of joining, repetition is not as simple as it is for a linear parser. However, repetition can be expressed as recursion and a join:
@@ -2150,8 +2150,8 @@ caterwaul.js_all()(function ($) {
 //   Zero-length combinators.
 //   These don't impact the parse state in any way, but they can cause a parse to fail by rejecting certain branches. They are more commonly known as lookahead combinators.
 
-    match(p)(states)  = states % [memo(p, [x]).length] -seq,
-    reject(p)(states) = states %![memo(p, [x]).length] -seq,
+    match(p)(states)  = states % [memo_single(p, x).length] -seq,
+    reject(p)(states) = states %![memo_single(p, x).length] -seq,
 
 //   Pluralization combinator.
 //   This is used to adapt linear terminal combinators to be used in a nonlinear context. It assumes that the linear combinator maps a truthy parse state into either another truthy parse state or
@@ -2170,16 +2170,39 @@ caterwaul.js_all()(function ($) {
 //   6. map(f(x))          returns an identical state whose result value is mapped through f
 //   7. memo_table()       returns a consistent reference to the memo table for this parse (the table is just a regular object)
 
+//   Driver generator.
+//   Most driver functions are repetitive enough that it's worth factoring out the common logic. This function takes a few parameters and returns a constructor. The 'options' parameter should be
+//   a hash that looks like this:
+
+//   | {step:     function (position, value) -> [state],
+//      id:       function () -> number
+//      defaults: {position: X, value: Y}}
+
+//   The only mandatory option is 'step', since this has no sensible default. Be sure to remember that step() needs to produce an array! It will cause all kinds of problems if you return a state
+//   that isn't encapsulated in an array.
+
+    $.parser.logical_state(options) = ctor -se- $.merge(it.prototype, methods_for(options.step))
+      -where [defaults                  = options.defaults || {},
+
+              default_position          = defaults.position,
+              default_value             = defaults.value,
+              id_function               = defaults.id || "++memo_id".qf,
+
+              ctor(i, p, v, memo_table) = this -se [it.i = i, it.p = p || default_position, it.v = v || default_value, it.table = memo_table || {}],
+
+              methods_for(step)         = capture [id()           = this.cached_id || (this.cached_id = id_function.call(this)),
+                                                   input()        = this.i,  next(n, v)   = n === 1 ? step.call(this, this.p, v) : this.next(n - 1, v) *~![x.next(1, v)] -seq,
+                                                   position()     = this.p,  map(f)       = new this.constructor(this.i, this.p, f(this.v), this.table),
+                                                   value()        = this.v,  memo_table() = this.table,
+                                                   change(values) = new this.constructor(values.input || this.i, values.position || this.p, values.value || this.v, this.table)]],
+
 //   String driver.
 //   This is a probably-linear parser. I say probably because it's simple enough to implement a subclass of it that jumps around within the string. However, we don't assume that initially; for
 //   our purposes we just define a linear, forward string traversal pattern.
 
-    $.merge(($.parser.linear_string_state(s, offset, value, memo_table) = this -se [it.s      = s,            it.v     = value      || null,
-                                                                                    it.offset = offset || 0,  it.table = memo_table || {}]).prototype,
-    capture [id()         = this.offset,
-             input()      = this.s,       next(n, v)   = [new this.constructor(this.s, this.offset + n, v, this.table)],
-             position()   = this.offset,  map(f)       = new this.constructor(this.s, this.offset, f(this.v), this.table),
-             value()      = this.v,       memo_table() = this.table]),
+    $.parser.linear_string_state = $.parser.logical_state(capture [step(p, v) = [this.change({position: p + 1, value: v})],
+                                                                   id()       = this.position(),
+                                                                   defaults   = {position: 0, value: null}]),
 
 //   String combinators.
 //   Whether you're using linear or nonlinear parsing, you'll probably want some terminal string combinators to work with. These are all regexp-based, hence the dependency on Caterwaul's regexp
@@ -2218,12 +2241,13 @@ caterwaul.js_all()(function ($) {
 //   This is used when you have a set of objects and/or arrays. The idea is to traverse the structure from the top down in some way, optionally collecting path-related information. Atoms, then,
 //   are the keys that dereference elements in the structure.
 
-    $.merge(($.parser.structure_state(o, k, value, memo_table) = this -se [it.o = o,          it.v     = value      || null,
-                                                                           it.k = k || null,  it.table = memo_table || {}]).prototype,
-    capture [id()       = this.cached_id || (this.cached_id = ++memo_id),
-             input()    = this.o,  next(n, v)   = n === 1 ? o /pairs *[new this.constructor(x[1], x[0], v, this.table)] -seq : this.next(n - 1, v) *~![x.next(1, v)] -seq,
-             position() = this.k,  map(f)       = new this.constructor(this.o, this.k, f(this.v), memo_table),
-             value()    = this.v,  memo_table() = this.table]),
+    $.parser.structure_state = $.parser.logical_state(capture [step(p, v) = this.input() /pairs *[this.change({input: x[1], position: x[0]})] -seq]),
+
+//   Array-like driver.
+//   This is used when you know that you've got objects that will support array-like traversal patterns. Caterwaul syntax trees fall into this category. This is distinct from the structure driver
+//   above because it doesn't iterate through properties, just from 0 to the last element as determined by the 'length' property.
+
+    $.parser.array_state     = $.parser.logical_state(capture [step(p, v) = this.input() *[this.change({input: x, position: xi})] -seq]),
 
 //   Structure combinators.
 //   Unlike string combinators, some of these are based on position and others are based on value predicates. This is due to the common use case for structural parsing: we want to traverse some
@@ -2248,9 +2272,10 @@ caterwaul.js_all()(function ($) {
          memo_id               = 0,
 
          memo_single(f, state) = value -where [f_key = f[memoization_key] || (f[memoization_key] = ++memo_id),
+                                               s_key = state.id(),
                                                table = state.memo_table(),
-                                               key   = '#{state.id()}_#{f_key}',
-                                               value = table.hasOwnProperty(key) ? table[key] : (table[key] = f([state]))],
+                                               key   = '#{s_key}_#{f_key}',
+                                               value = f_key && s_key && table.hasOwnProperty(key) ? table[key] : (table[key] = f([state]))],
 
          memo(f, states)       = states *~![f /-memo_single/ x] -seq]})(caterwaul);
 
