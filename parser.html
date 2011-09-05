@@ -2594,7 +2594,7 @@ terminal::info("created module $name, which is automatically loaded into REPL se
 __
 meta::function('modules', <<'__');
 # Identify the modules defined by the user.
-grep s/^sdoc::js::// && ! (/^repl$/ || /^test$/ || /^modules$/ || /^dependencies$/), select_keys('--criteria' => '^sdoc::js::');
+grep s/^sdoc::js:://, select_keys('--criteria' => '^sdoc::js::', -u => 1);
 
 __
 meta::function('mv', <<'__');
@@ -2857,6 +2857,10 @@ my @keys = sort keys %data;
 my $hash = fast_hash(fast_hash(scalar @keys) . join '|', @keys);
 $hash = fast_hash("$data{$_}|$hash") for @keys;
 $hash;
+__
+meta::function('test', <<'__');
+with_exported('pp::js::test-setup', sub {sh('node', @_)});
+
 __
 meta::function('touch', 'associate($_, \'\') for @_;');
 meta::function('unlock', 'hook(\'unlock\', chmod_self(sub {$_[0] | 0200}));');
@@ -3319,18 +3323,21 @@ meta::message_color('state', 'purple');
 meta::message_color('states', 'yellow');
 meta::parent('/home/spencertipping/bin/caterwaul-extension.html', <<'__');
 function::module                                            8c2f325d2e3625ac7f61d1bd7c7a60d2
-function::modules                                           8779755d0bafe785fd6f00e696831eeb
+function::modules                                           507520e85cd7f1f1d4a36c7b3f236178
 function::render                                            294736f966f2af3fdd28e9c38e1f1d31
 function::repl                                              4e54c4a46a6381c0cd6533e75b4bc062
+function::test                                              5a7fe339ff48a35fe30983365af1e2a1
 parent::/home/spencertipping/bin/repository                 50b3981a563910cc2f2e206b17514504
 parent::/home/spencertipping/conjectures/perl-objects/js    67e8e3410e9b195d2b43f6c446042e3c
 parent::/home/spencertipping/conjectures/perl-objects/sdoc  f938653251b89b98cbcc26c713a2dae7
 parent::preprocessor                                        4695da77689b5766150749851560c16e
 sdoc::html::test                                            69631229b55eddc4f7402badb13f4fe1
+sdoc::js::console                                           6b315e3398a0669509f353a260f11716
 sdoc::js::dependencies                                      f98fdf7af0dc93d98f0392aff155c9cf
 sdoc::js::modules                                           2ff90d3bfe72d95e62d6bbfc4e99273c
-sdoc::js::repl                                              6f0ab89ffc6f682b69f536d733c2d9d5
+sdoc::js::repl                                              b194397d2c44e51527d58f22ae48b43f
 sdoc::js::test                                              eea2d2f5909703e105fe1373ea4b1757
+sdoc::js::test-setup                                        c8b68de30eece1fcbace6add858c76eb
 
 __
 meta::parent('/home/spencertipping/bin/configuration', <<'__');
@@ -3670,6 +3677,14 @@ meta::sdoc('html::test', <<'__');
 - end
 
 __
+meta::sdoc('js::console', <<'__');
+Console-based testing.
+This color-codes the test output depending on error status.
+
+var t = function () {try       {console.log(Array.prototype.join.call(arguments, ', ') + ' \033[1;32m' + test_case.apply(this, arguments) + '\033[0;0m')}
+                     catch (e) {console.log(Array.prototype.join.call(arguments, ', ') + ' \033[1;31m' + e                                + '\033[0;0m')}};
+
+__
 meta::sdoc('js::dependencies', <<'__');
 Module dependencies.
 Usually this is just Caterwaul and the standard extension. If you modify these, you should probably also run 'dependencies edit' to inform the script about where these files are downloaded
@@ -3956,19 +3971,10 @@ memoization partition.
 
 __
 meta::sdoc('js::repl', <<'__');
-Prerequisites.
-We need to load dependencies and the extension modules.
-
-- pinclude pp::js::dependencies
-- pinclude pp::js::modules
-
 Unit tests.
-These are loaded automatically each time you boot up the REPL. This makes it easy to see when something has gone wrong.
+These are run automatically prior to starting the REPL.
 
-var t = function () {try       {console.log(Array.prototype.join.call(arguments, ', ') + ' \033[1;32m' + test_case.apply(this, arguments) + '\033[0;0m')}
-                     catch (e) {console.log(Array.prototype.join.call(arguments, ', ') + ' \033[1;31m' + e                                + '\033[0;0m')}};
-
-- pinclude pp::js::test
+- pinclude pp::js::test-setup
 
 REPL driver.
 This enters the node.js REPL and lets you experiment with your extension.
@@ -4009,6 +4015,20 @@ caterwaul.js_all()(function () {
   many(linear_regexp(/f/), bfc) /~bfc/linear_regexp(/oo/) /linear_string_state.end |-p| [new linear_string_state('fffffffffffoo')],
 
   using [caterwaul.parser]}, {t: t})();
+
+__
+meta::sdoc('js::test-setup', <<'__');
+Prerequisites.
+We need to load dependencies and the extension modules.
+
+- pinclude pp::js::dependencies
+- pinclude pp::js::modules
+
+Unit tests.
+These are loaded automatically each time you boot up the REPL. This makes it easy to see when something has gone wrong.
+
+- pinclude pp::js::console
+- pinclude pp::js::test
 
 __
 meta::template('comment', '\'\';     # A mechanism for line or block comments.');
