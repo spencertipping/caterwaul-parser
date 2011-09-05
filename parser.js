@@ -104,7 +104,8 @@ caterwaul.js_all()(function ($) {
 //   tricky given that we're potentially cloning them on every step. Simpler, though less performant, is to construct a new array for each step.
 
     bfs(ps = arguments)(states) = ps /[states][x /-memo/ x0] -seq,
-    bfc(ps = arguments)(states) = ps /~p[states *[[x]] -seq][p0 *~!~row[memo_single(p, row[row.length - 1]) *~[row + [x]]]] *row[row[row.length - 1].map("row.slice(1) *[x.value()] -seq".qf)] -seq,
+    bfc(ps = arguments)(states) = ps /~p[states *[[x]] -seq][p0 *~!~row[memo_single(p, row[row.length - 1]) *~[row + [x]]]]
+                                     *row[row[row.length - 1].map("row.slice(1) *[x.value()] -seq".qf)] -seq,
 
 //   Choice combinators.
 //   Nonlinearity provides choice among inputs, but we still need combinators to choose grammar productions. There isn't anything particularly remarkable about this library's implementation of
@@ -121,7 +122,7 @@ caterwaul.js_all()(function ($) {
 //   the output of many() is a right-folded set of binary joins. The funky f(states) = f(states) statement just sets up a temporary function that will proxy to the real 'f' when we redefine it.
 //   This way we have access to 'f' both before and after it exists (and it will do the same thing in either case).
 
-    many(p, join) = f -where [f(states) = f(states), f = p /-$.parser.join/ f /-$.parser.alt/ p],
+    many(p, join) = f -where [f(states) = f(states), f = p /-join/ f /-$.parser.alt/ p],
 
 //   Trivial combinators.
 //   Most combinator libraries are modeled to have separate zero-or-more, one-or-more, and zero-or-one functions. This one is different in that it provides a universal zero combinator that
@@ -177,15 +178,18 @@ caterwaul.js_all()(function ($) {
                                                    input()        = this.i,  next(n, v)   = n === 1 ? step.call(this, this.p, v) : this.next(n - 1, v) *~![x.next(1, v)] -seq,
                                                    position()     = this.p,  map(f)       = new this.constructor(this.i, this.p, f(this.v), this.table),
                                                    value()        = this.v,  memo_table() = this.table,
+                                                   toString()     = '#{this.i} @ #{this.p} : #{this.v}',
                                                    change(values) = new this.constructor(values.input || this.i, values.position || this.p, values.value || this.v, this.table)]],
 
 //   String driver.
 //   This is a probably-linear parser. I say probably because it's simple enough to implement a subclass of it that jumps around within the string. However, we don't assume that initially; for
 //   our purposes we just define a linear, forward string traversal pattern.
 
-    $.parser.linear_string_state = $.parser.logical_state(capture [step(p, v) = [this.change({position: p + 1, value: v})],
-                                                                   id()       = this.position(),
-                                                                   defaults   = {position: 0, value: null}]),
+    $.parser.linear_string_state = $.merge($.parser.logical_state(capture [step(p, v) = [this.change({position: p + 1, value: v})],
+                                                                           id()       = this.position(),
+                                                                           defaults   = {position: 0, value: null}]),
+
+                                           capture [end(states) = states %[x.position() === x.input().length] -seq]),
 
 //   String combinators.
 //   Whether you're using linear or nonlinear parsing, you'll probably want some terminal string combinators to work with. These are all regexp-based, hence the dependency on Caterwaul's regexp
