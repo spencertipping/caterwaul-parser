@@ -101,17 +101,26 @@ caterwaul.js_all()(function ($) {
 //     ...
 
 //   I'm modeling this by representing each row as an array and having the arrays grow rightward as more parsers are used. I was tempted to statefully update the initial arrays, but this is
-//   tricky given that we're potentially cloning them on every step. Simpler, though less performant, is to construct a new array for each step.
+//   tricky given that we're potentially cloning them on every step. This logic is captured by step_matrix_mutable(), which optimizes linear cases. (step_matrix_immutable doesn't employ this
+//   optimization, which may be safer if you want to preserve intermediate matrices.)
 
     bfs(ps = arguments)(states) = ps /[states][x /-memo/ x0] -seq,
-    bfc(ps = arguments)(states) = ps /~p[states *[[x]] -seq][p0 *~!~row[memo_single(p, row[row.length - 1]) *~[row + [x]]]]
-                                     *row[row[row.length - 1].map("row.slice(1) *[x.value()] -seq".qf)] -seq,
+    bfc(ps = arguments)(states) = ps /[states /!$.parser.state_matrix][step(x)(x0)] /seq /!$.parser.row_composite_states_from -where [step = $.parser.step_matrix_mutable],
+
+    state_matrix(states)         = states *[[x]] -seq,
+    step_matrix_mutable(p)(m)    = m *~!r[xs.length === 1 ? r.push(xs[0]) && [r] : xs *~[r + [x]] -seq, where [xs = p /-memo_single/ r[r.length - 1]]] -seq,
+    step_matrix_immutable(p)(m)  = m *~!~r[memo_single(p, r[r.length - 1]) *~[r + [x]]] -seq,
+    row_composite_states_from(m) = m *r[r[r.length - 1].map("r.slice(1) *[x.value()] -seq".qf)] -seq,
 
 //   Choice combinators.
-//   Nonlinearity provides choice among inputs, but we still need combinators to choose grammar productions. There isn't anything particularly remarkable about this library's implementation of
-//   choice combinators; they are logically identical to the ones used in linear parsing expression grammars.
+//   Nonlinearity provides choice among inputs, but we still need combinators to choose grammar productions. There are two such combinators provided by this library. One, alt(), returns the first
+//   possibility that has states. This is useful in linear parsing contexts where a full search is not needed. The other, all(), accumulates every possibility of every sub-parser. This is useful
+//   when it's necessary to search an entire structure.
 
-    alt(ps = arguments)(states) = states *~!state[ps |[x /-memo_single/ state -re [it.length && it]] |seq || []] -seq,
+//   Put differently, alt() introduces a cut into the search, whereas all() does not.
+
+    alt(ps = arguments)(states) = states *~!state[ps   |[x /-memo_single/ state -re [it.length && it]] |seq || []] -seq,
+    all(ps = arguments)(states) = states *~!state[ps *~![x /-memo_single/ state]] -seq,
 
 //   Repetition combinators.
 //   Because there are multiple types of joining, repetition is not as simple as it is for a linear parser. However, repetition can be expressed as recursion and a join:
@@ -122,7 +131,23 @@ caterwaul.js_all()(function ($) {
 //   the output of many() is a right-folded set of binary joins. The funky f(states) = f(states) statement just sets up a temporary function that will proxy to the real 'f' when we redefine it.
 //   This way we have access to 'f' both before and after it exists (and it will do the same thing in either case).
 
-    many(p, join) = f -where [f(states) = f(states), f = p /-join/ f /-$.parser.alt/ p],
+//   If you want to collect an array of many things, you're better off using the 'manyc' combinator -- this returns a flat array rather than a folded one, and knows to use breadth-first with
+//   collection. It's probably also more efficient than using many() if you want all of the intermediate results, especially if the parser behaves linearly and matches many times.
+
+//   Repeating a parser isn't quite as simple as breadth-first collection. The reason is that some states' paths might terminate before others' do. Going back to the matrix model above, this
+//   means that some rows have fewer columns than others. In order to deal with this in a breadth-first way, we need to keep track of which states have terminated and stop iterating those while
+//   simultaneously flat-mapping others. I'm doing this by appending a null entry to terminated arrays. The iteration is done when all rows end with null.
+
+    manyc(p)(states)               = $.parser.state_matrix(states) /~!step /seq /!$.parser.row_null_states_from -where [iterate = $.parser.step_matrix_mutable_null(p),
+                                                                                                                        step(m) = $.parser.has_non_null_states(m) ? iterate(m) : null],
+    many(p, join)                  = f -where [f(states) = f(states), f = p /-join/ f /-$.parser.alt/ p],
+    optional(p)                    = p /-$.parser.alt/ zero,
+
+    has_non_null_states(m)         = m |r[r[r.length - 1]] |seq,
+    step_matrix_mutable_null(p)(m) = m *~!r[xs ? l ? l === 1 ? r.push(xs[0]) && [r] : xs *~[r + [x]] -seq : r.push(null) && [r] : [r],
+                                            where [xs = r[r.length - 1] -re [it && p /-memo_single/ it], l  = xs && xs.length]] -seq,
+
+    row_null_states_from(m)        = m *r[r[r.length - 2].map("r.slice(1, r.length - 1) *[x.value()] -seq".qf)] -seq,
 
 //   Trivial combinators.
 //   Most combinator libraries are modeled to have separate zero-or-more, one-or-more, and zero-or-one functions. This one is different in that it provides a universal zero combinator that
@@ -165,7 +190,7 @@ caterwaul.js_all()(function ($) {
 //   The only mandatory option is 'step', since this has no sensible default. Be sure to remember that step() needs to produce an array! It will cause all kinds of problems if you return a state
 //   that isn't encapsulated in an array.
 
-    $.parser.logical_state(options) = ctor -se- $.merge(it.prototype, methods_for(options.step))
+    $.parser.logical_state(options) = ctor -se- it.prototype /-$.merge/ methods_for(options.step)
       -where [defaults                  = options.defaults || {},
 
               default_position          = defaults.position,
@@ -176,7 +201,7 @@ caterwaul.js_all()(function ($) {
 
               methods_for(step)         = capture [id()           = this.cached_id || (this.cached_id = id_function.call(this)),
                                                    input()        = this.i,  next(n, v)   = n === 1 ? step.call(this, this.p, v) : this.next(n - 1, v) *~![x.next(1, v)] -seq,
-                                                   position()     = this.p,  map(f)       = new this.constructor(this.i, this.p, f(this.v), this.table),
+                                                   position()     = this.p,  map(f)       = new this.constructor(this.i, this.p, this.v /!f, this.table),
                                                    value()        = this.v,  memo_table() = this.table,
                                                    toString()     = '#{this.i} @ #{this.p} : #{this.v}',
                                                    change(values) = new this.constructor(values.input || this.i, values.position || this.p, values.value || this.v, this.table)]],
@@ -207,7 +232,7 @@ caterwaul.js_all()(function ($) {
 
                                linear_string(s)(states) = states *~![x.input().substr(x.position(), s.length) === s ? x.next(s.length, s) : []] -seq,
                                linear_regexp(r)         = matcher -where [minimum_length   = $.regexp(r).minimum_length(),
-                                                                          anchored         = $.parser.anchor_regexp(r),
+                                                                          anchored         = r /!$.parser.anchor_regexp,
                                                                           matcher(states)  = states *~!match_one -seq,
                                                                           match_one(state) = new_states
                                                                                      -where [s              = state.input(),
@@ -215,12 +240,12 @@ caterwaul.js_all()(function ($) {
                                                                                              maximum_length = s.length - offset,
 
                                                                                              match(l)       = l <= maximum_length && anchored.test(s.substr(offset, l)),
-                                                                                             longest(l)     = match(l) ? longest(l << 1) : l,
-                                                                                             valid(l, m, u) = l < u - 1 ? match(m) ? valid(m, m + u >> 1, u) : valid(l, l + m >> 1, m) : m,
+                                                                                             longest(l)     = l /!match ? longest(l << 1) : l,
+                                                                                             valid(l, m, u) = l < u - 1 ? m /!match ? valid(m, m + u >> 1, u) : valid(l, l + m >> 1, m) : m,
 
-                                                                                             new_states     = match(minimum_length) ?
+                                                                                             new_states     = minimum_length /!match ?
                                                                                                                 state.next(match_length, anchored.exec(s.substr(offset, match_length)))
-                                                                                                                -where [max          = longest(minimum_length),
+                                                                                                                -where [max          = minimum_length /!longest,
                                                                                                                         match_length = valid(minimum_length, minimum_length + max >> 1, max)] :
                                                                                                                 []]]]),
 
@@ -228,13 +253,13 @@ caterwaul.js_all()(function ($) {
 //   This is used when you have a set of objects and/or arrays. The idea is to traverse the structure from the top down in some way, optionally collecting path-related information. Atoms, then,
 //   are the keys that dereference elements in the structure.
 
-    $.parser.structure_state = $.parser.logical_state(capture [step(p, v) = this.input() /pairs *[this.change({input: x[1], position: x[0]})] -seq]),
+    $.parser.structure_state = capture [step(p, v) = this.input() /pairs *[this.change({input: x[1], position: x[0]})] -seq] /!$.parser.logical_state,
 
 //   Array-like driver.
 //   This is used when you know that you've got objects that will support array-like traversal patterns. Caterwaul syntax trees fall into this category. This is distinct from the structure driver
 //   above because it doesn't iterate through properties, just from 0 to the last element as determined by the 'length' property.
 
-    $.parser.array_state     = $.parser.logical_state(capture [step(p, v) = this.input() *[this.change({input: x, position: xi})] -seq]),
+    $.parser.array_state     = capture [step(p, v) = this.input() *[this.change({input: x, position: xi})] -seq] /!$.parser.logical_state,
 
 //   Structure combinators.
 //   Unlike string combinators, some of these are based on position and others are based on value predicates. This is due to the common use case for structural parsing: we want to traverse some
@@ -248,8 +273,8 @@ caterwaul.js_all()(function ($) {
              position() = this.state.position(),           map(f)       = this.state.map(f),
              value()    = this.state.value(),              memo_table() = this.state.memo_table()]),
 
-    $.merge($.parser, capture [position_state(s)   = new $.parser.proxy_state(s, "this.position()".qf),
-                               position(p)(states) = p(states *$.parser.position_state -seq)]),
+    $.parser /-$.merge/ capture [position_state(s)   = new $.parser.proxy_state(s, "this.position()".qf),
+                                 position(p)(states) = p(states *$.parser.position_state -seq)],
 
 // Memoization.
 // This happens at the combinator level. Each combinator generated by the parser is assigned a unique identifier (this happens automatically), and that identifier is then used to track the
