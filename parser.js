@@ -104,13 +104,13 @@ caterwaul.js_all()(function ($) {
 //   tricky given that we're potentially cloning them on every step. This logic is captured by step_matrix_mutable(), which optimizes linear cases. (step_matrix_immutable doesn't employ this
 //   optimization, which may be safer if you want to preserve intermediate matrices.)
 
-    bfs(ps = arguments)(states) = ps /[states][x /-memo/ x0] -seq,
-    bfc(ps = arguments)(states) = ps /[states /!$.parser.state_matrix][step(x)(x0)] /seq /!$.parser.row_composite_states_from -where [step = $.parser.step_matrix_mutable],
+    bfs(ps = arguments)(states)  = ps /[states][x /-memo/ x0] -seq,
+    bfc(ps = arguments)(states)  = ps /[states /!$.parser.state_matrix][step(x)(x0)] /seq /!$.parser.row_composite_states_from -where [step = $.parser.step_matrix_mutable],
 
     state_matrix(states)         = states *[[x]] -seq,
     step_matrix_mutable(p)(m)    = m *~!r[xs.length === 1 ? r.push(xs[0]) && [r] : xs *~[r + [x]] -seq, where [xs = p /-memo_single/ r[r.length - 1]]] -seq,
     step_matrix_immutable(p)(m)  = m *~!~r[memo_single(p, r[r.length - 1]) *~[r + [x]]] -seq,
-    row_composite_states_from(m) = m *r[r[r.length - 1].map("r.slice(1) *[x.value()] -seq".qf)] -seq,
+    row_composite_states_from(m) = m *r[r[r.length - 1].map("r.slice(1, r.length) *[x.value()] -seq".qf)] -seq,
 
 //   Choice combinators.
 //   Nonlinearity provides choice among inputs, but we still need combinators to choose grammar productions. There are two such combinators provided by this library. One, alt(), returns the first
@@ -138,16 +138,19 @@ caterwaul.js_all()(function ($) {
 //   means that some rows have fewer columns than others. In order to deal with this in a breadth-first way, we need to keep track of which states have terminated and stop iterating those while
 //   simultaneously flat-mapping others. I'm doing this by appending a null entry to terminated arrays. The iteration is done when all rows end with null.
 
-    manyc(p)(states)               = $.parser.state_matrix(states) /~!step /seq /!$.parser.row_null_states_from -where [iterate = $.parser.step_matrix_mutable_null(p),
-                                                                                                                        step(m) = $.parser.has_non_null_states(m) ? iterate(m) : null],
-    many(p, join)                  = f -where [f(states) = f(states), f = p /-join/ f /-$.parser.alt/ p],
-    optional(p)                    = p /-$.parser.alt/ zero,
+    manyc(p)(states)                 = $.parser.state_matrix(states) /~!step /seq /!$.parser.row_null_states_from -where [iterate = $.parser.step_matrix_mutable_null(p),
+                                                                                                                          step(m) = $.parser.has_non_null_states(m) ? iterate(m) : null],
+    many(p, join)                    = f -where [f(states) = f(states), f = p /-join/ f /-$.parser.alt/ p],
+    optional(p)                      = p /-$.parser.alt/ zero,
 
-    has_non_null_states(m)         = m |r[r[r.length - 1]] |seq,
-    step_matrix_mutable_null(p)(m) = m *~!r[xs ? l ? l === 1 ? r.push(xs[0]) && [r] : xs *~[r + [x]] -seq : r.push(null) && [r] : [r],
-                                            where [xs = r[r.length - 1] -re [it && p /-memo_single/ it], l  = xs && xs.length]] -seq,
+    has_non_null_states(m)           = m |r[r[r.length - 1]] |seq,
 
-    row_null_states_from(m)        = m *r[r[r.length - 2].map("r.slice(1, r.length - 1) *[x.value()] -seq".qf)] -seq,
+    step_matrix_immutable_null(p)(m) = m *~!r[xs ? xs.length ? xs *~[r + [x]] -seq : [r + [null] -seq] : [r], where [xs = r[r.length - 1] -re [it && p /-memo_single/ it]]] -seq,
+
+    step_matrix_mutable_null(p)(m)   = m *~!r[xs ? l ? l === 1 ? r.push(xs[0]) && [r] : xs *~[r + [x]] -seq : r.push(null) && [r] : [r],
+                                              where [xs = r[r.length - 1] -re [it && p /-memo_single/ it], l = xs && xs.length]] -seq,
+
+    row_null_states_from(ms)         = ms[ms.length - 1] *r[r[r.length - 2].map("r.slice(1, r.length - 1) *[x.value()] -seq".qf)] /seq,
 
 //   Trivial combinators.
 //   Most combinator libraries are modeled to have separate zero-or-more, one-or-more, and zero-or-one functions. This one is different in that it provides a universal zero combinator that
@@ -210,11 +213,11 @@ caterwaul.js_all()(function ($) {
 //   This is a probably-linear parser. I say probably because it's simple enough to implement a subclass of it that jumps around within the string. However, we don't assume that initially; for
 //   our purposes we just define a linear, forward string traversal pattern.
 
-    $.parser.linear_string_state = $.merge($.parser.logical_state(capture [step(p, v) = [this.change({position: p + 1, value: v})],
-                                                                           id()       = this.position(),
-                                                                           defaults   = {position: 0, value: null}]),
+    $.parser.linear_string_state = capture [step(p, v)  = [this.change({position: p + 1, value: v})],
+                                            id()        = this.position(),
+                                            defaults    = {position: 0, value: null}] /!$.parser.logical_state /-$.merge/
 
-                                           capture [end(states) = states %[x.position() === x.input().length] -seq]),
+                                   capture [end(states) = states %[x.position() === x.input().length] -seq],
 
 //   String combinators.
 //   Whether you're using linear or nonlinear parsing, you'll probably want some terminal string combinators to work with. These are all regexp-based, hence the dependency on Caterwaul's regexp
@@ -286,7 +289,7 @@ caterwaul.js_all()(function ($) {
          memo_single(f, state) = value -where [f_key = f[memoization_key] || (f[memoization_key] = ++memo_id),
                                                s_key = state.id(),
                                                table = state.memo_table(),
-                                               key   = '#{s_key}_#{f_key}',
+                                               key   = '@#{s_key}_#{f_key}',            // Prefix with @ to eliminate the possibility of collisions with other properties
                                                value = f_key && s_key && table.hasOwnProperty(key) ? table[key] : (table[key] = f([state]))],
 
          memo(f, states)       = states *~![f /-memo_single/ x] -seq]})(caterwaul);
