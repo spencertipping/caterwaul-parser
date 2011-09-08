@@ -234,7 +234,7 @@ caterwaul.js_all()(function ($) {
     $.merge($.parser, capture [anchor_regexp(r) = new RegExp('^#{body}$', flags) -where [pieces = /^\/(.*)\/(\w*)$/.exec(r.toString()), body = pieces[1], flags = pieces[2]],
 
                                linear_string(s)(states) = states *~![x.input().substr(x.position(), s.length) === s ? x.next(s.length, s) : []] -seq,
-                               linear_regexp(r)         = matcher -where [minimum_length   = $.regexp(r).minimum_length(),
+                               linear_regexp(r)         = matcher -where [minimum_length   = $.regexp(r).minimum_length() || 1,
                                                                           anchored         = r /!$.parser.anchor_regexp,
                                                                           matcher(states)  = states *~!match_one -seq,
                                                                           match_one(state) = new_states
