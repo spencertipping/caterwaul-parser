@@ -71,36 +71,36 @@ caterwaul.js_all()(function ($) {
 
   $.parser = capture [
 
-//   Traversal combinators.
+  // Traversal combinators.
 //   Linear parser combinator libraries generally implement a 'seq' or 'join' combinator that causes one parser to be activated and then followed by another one. Because there is only one path to
 //   follow, there isn't a distinction between breadth-first and depth-first searching. When you have multiple paths, though, the ordering becomes important. It may be the case that a path never
 //   ends; in this case breadth-first with eager termination is more useful.
 
-//   Taken outside of the traditional parsing context, traversal combinators can be seen as search strategies. Some searches explore all alternatives simultaneously while others optimistically
+  // Taken outside of the traditional parsing context, traversal combinators can be seen as search strategies. Some searches explore all alternatives simultaneously while others optimistically
 //   search for a single solution and assume that none will devolve into infinite recursion. Some return all solutions, others abandon further searching after a single solution is found. As such,
 //   this parser library implements several different join combinators that embody these different behaviors.
 
-//   Different combinators do different things with the parse values. As a convention, combinators ending with 's' are searches that just return the final values. Combinators ending in 'c' are
+  // Different combinators do different things with the parse values. As a convention, combinators ending with 's' are searches that just return the final values. Combinators ending in 'c' are
 //   collectors that return all of the intermediate values as arrays.
 
-//   The construction of bfc() is a bit gnarly. Here's what's going on. We start off with an array of states, and we need to, in a breadth-first manner, follow each state and collect the
+  // The construction of bfc() is a bit gnarly. Here's what's going on. We start off with an array of states, and we need to, in a breadth-first manner, follow each state and collect the
 //   intermediate values. The simplest way to do this is to create a state matrix, where rows are parse paths and columns are steps within each path. So we'd have something like this:
 
-//   | states[0]  ps[0](states[0])  ps[1](ps[0](states[0]))  ...
+  // | states[0]  ps[0](states[0])  ps[1](ps[0](states[0]))  ...
 //     states[1]  ps[0](states[1])  ps[1](ps[0](states[1]))  ...
 //     states[2]  ps[0](states[2])  ps[1](ps[0](states[2]))  ...
 //     ...
 
-//   The only trouble is that each parser might have multiple or no return states. We solve this by duplicating or removing whichever origin states are necessary to keep the matrix rectangular
+  // The only trouble is that each parser might have multiple or no return states. We solve this by duplicating or removing whichever origin states are necessary to keep the matrix rectangular
 //   and dense. For instance, suppose that ps[0](states[1]) produced two values. Then we'd have this:
 
-//   | states[0]  ps[0](states[0])     ps[1](ps[0](states[0]))     ...
+  // | states[0]  ps[0](states[0])     ps[1](ps[0](states[0]))     ...
 //     states[1]  ps[0](states[1])[0]  ps[1](ps[0](states[1])[0])  ...
 //     states[1]  ps[0](states[1])[1]  ps[1](ps[0](states[1])[1])  ...
 //     states[2]  ps[0](states[2])     ps[1](ps[0](states[2]))     ...
 //     ...
 
-//   I'm modeling this by representing each row as an array and having the arrays grow rightward as more parsers are used. I was tempted to statefully update the initial arrays, but this is
+  // I'm modeling this by representing each row as an array and having the arrays grow rightward as more parsers are used. I was tempted to statefully update the initial arrays, but this is
 //   tricky given that we're potentially cloning them on every step. This logic is captured by step_matrix_mutable(), which optimizes linear cases. (step_matrix_immutable doesn't employ this
 //   optimization, which may be safer if you want to preserve intermediate matrices.)
 
@@ -112,29 +112,29 @@ caterwaul.js_all()(function ($) {
     step_matrix_immutable(p)(m)  = m *~!~r[memo_single(p, r[r.length - 1]) *~[r + [x]]] -seq,
     row_composite_states_from(m) = m *r[r[r.length - 1].map("r.slice(1, r.length) *[x.value()] -seq".qf)] -seq,
 
-//   Choice combinators.
+  // Choice combinators.
 //   Nonlinearity provides choice among inputs, but we still need combinators to choose grammar productions. There are two such combinators provided by this library. One, alt(), returns the first
 //   possibility that has states. This is useful in linear parsing contexts where a full search is not needed. The other, all(), accumulates every possibility of every sub-parser. This is useful
 //   when it's necessary to search an entire structure.
 
-//   Put differently, alt() introduces a cut into the search, whereas all() does not.
+  // Put differently, alt() introduces a cut into the search, whereas all() does not.
 
     alt(ps = arguments)(states) = states *~!state[ps   |[x /-memo_single/ state -re [it.length && it]] |seq || []] -seq,
     all(ps = arguments)(states) = states *~!state[ps *~![x /-memo_single/ state]] -seq,
 
-//   Repetition combinators.
+  // Repetition combinators.
 //   Because there are multiple types of joining, repetition is not as simple as it is for a linear parser. However, repetition can be expressed as recursion and a join:
 
-//   | repeat(parser) = R -> parser R | parser
+  // | repeat(parser) = R -> parser R | parser
 
-//   This library's repetition combinator takes two parameters. One is the parser to be repeated, and the other is the join combinator that is used to connect it to the recursive step. Note that
+  // This library's repetition combinator takes two parameters. One is the parser to be repeated, and the other is the join combinator that is used to connect it to the recursive step. Note that
 //   the output of many() is a right-folded set of binary joins. The funky f(states) = f(states) statement just sets up a temporary function that will proxy to the real 'f' when we redefine it.
 //   This way we have access to 'f' both before and after it exists (and it will do the same thing in either case).
 
-//   If you want to collect an array of many things, you're better off using the 'manyc' combinator -- this returns a flat array rather than a folded one, and knows to use breadth-first with
+  // If you want to collect an array of many things, you're better off using the 'manyc' combinator -- this returns a flat array rather than a folded one, and knows to use breadth-first with
 //   collection. It's probably also more efficient than using many() if you want all of the intermediate results, especially if the parser behaves linearly and matches many times.
 
-//   Repeating a parser isn't quite as simple as breadth-first collection. The reason is that some states' paths might terminate before others' do. Going back to the matrix model above, this
+  // Repeating a parser isn't quite as simple as breadth-first collection. The reason is that some states' paths might terminate before others' do. Going back to the matrix model above, this
 //   means that some rows have fewer columns than others. In order to deal with this in a breadth-first way, we need to keep track of which states have terminated and stop iterating those while
 //   simultaneously flat-mapping others. I'm doing this by appending a null entry to terminated arrays. The iteration is done when all rows end with null.
 
@@ -152,20 +152,20 @@ caterwaul.js_all()(function ($) {
 
     row_null_states_from(ms)         = ms[ms.length - 1] *r[r[r.length - 2].map("r.slice(1, r.length - 1) *[x.value()] -seq".qf)] /seq,
 
-//   Trivial combinators.
+  // Trivial combinators.
 //   Most combinator libraries are modeled to have separate zero-or-more, one-or-more, and zero-or-one functions. This one is different in that it provides a universal zero combinator that
 //   consumes nothing and does nothing. You can use it with alternatives to form optional rules. Similarly uninteresting is the fail combinator, which always rejects its input.
 
     zero(states) = states,
     fail(states) = [],
 
-//   Zero-length combinators.
+  // Zero-length combinators.
 //   These don't impact the parse state in any way, but they can cause a parse to fail by rejecting certain branches. They are more commonly known as lookahead combinators.
 
     match(p)(states)  = states % [memo_single(p, x).length] -seq,
     reject(p)(states) = states %![memo_single(p, x).length] -seq,
 
-//   Pluralization combinator.
+  // Pluralization combinator.
 //   This is used to adapt linear terminal combinators to be used in a nonlinear context. It assumes that the linear combinator maps a truthy parse state into either another truthy parse state or
 //   a null value.
 
@@ -182,15 +182,15 @@ caterwaul.js_all()(function ($) {
 //   6. map(f(x))          returns an identical state whose result value is mapped through f
 //   7. memo_table()       returns a consistent reference to the memo table for this parse (the table is just a regular object)
 
-//   Driver generator.
+  // Driver generator.
 //   Most driver functions are repetitive enough that it's worth factoring out the common logic. This function takes a few parameters and returns a constructor. The 'options' parameter should be
 //   a hash that looks like this:
 
-//   | {step:     function (position, value) -> [state],
+  // | {step:     function (position, value) -> [state],
 //      id:       function () -> number
 //      defaults: {position: X, value: Y}}
 
-//   The only mandatory option is 'step', since this has no sensible default. Be sure to remember that step() needs to produce an array! It will cause all kinds of problems if you return a state
+  // The only mandatory option is 'step', since this has no sensible default. Be sure to remember that step() needs to produce an array! It will cause all kinds of problems if you return a state
 //   that isn't encapsulated in an array.
 
     $.parser.logical_state(options) = ctor -se- it.prototype /-$.merge/ methods_for(options.step)
@@ -209,7 +209,7 @@ caterwaul.js_all()(function ($) {
                                                    toString()     = '#{this.i} @ #{this.p} : #{this.v}',
                                                    change(values) = new this.constructor(values.input || this.i, values.position || this.p, values.value || this.v, this.table)]],
 
-//   String driver.
+  // String driver.
 //   This is a probably-linear parser. I say probably because it's simple enough to implement a subclass of it that jumps around within the string. However, we don't assume that initially; for
 //   our purposes we just define a linear, forward string traversal pattern.
 
@@ -219,15 +219,15 @@ caterwaul.js_all()(function ($) {
 
                                    capture [end(states) = states %[x.position() === x.input().length] -seq],
 
-//   String combinators.
+  // String combinators.
 //   Whether you're using linear or nonlinear parsing, you'll probably want some terminal string combinators to work with. These are all regexp-based, hence the dependency on Caterwaul's regexp
 //   parsing extension. Note that this parser is plural, not singular; you won't need to use the pluralize() function with it.
 
-//   Note that regexp() works only in a sequential linear context. If you're doing things like jumping around a string within a single parse step, then you'll need to precompute the jumps by
+  // Note that regexp() works only in a sequential linear context. If you're doing things like jumping around a string within a single parse step, then you'll need to precompute the jumps by
 //   generating a new string and then parsing against that. (I'm doing it this way for performance in the most common case.) Alternatively, you can write a new regexp() parser combinator that is
 //   aware of jumping.
 
-//   Regular expression matching has worst-case O(n log n) time complexity, where n is the match length. This is done by bisecting the match region until we identify the longest possible match.
+  // Regular expression matching has worst-case O(n log n) time complexity, where n is the match length. This is done by bisecting the match region until we identify the longest possible match.
 //   It's possible to do this because we know up-front the minimum match length; Caterwaul's regexp library provides this. We then double this until the match fails or we run off the end of the
 //   string. Then we bisect between the minimum and the failure length until we find the point at which the match fails.
 
@@ -252,19 +252,19 @@ caterwaul.js_all()(function ($) {
                                                                                                                         match_length = valid(minimum_length, minimum_length + max >> 1, max)] :
                                                                                                                 []]]]),
 
-//   Structure driver.
+  // Structure driver.
 //   This is used when you have a set of objects and/or arrays. The idea is to traverse the structure from the top down in some way, optionally collecting path-related information. Atoms, then,
 //   are the keys that dereference elements in the structure.
 
     $.parser.structure_state = capture [step(p, v) = this.input() /pairs *[this.change({input: x[1], position: x[0]})] -seq] /!$.parser.logical_state,
 
-//   Array-like driver.
+  // Array-like driver.
 //   This is used when you know that you've got objects that will support array-like traversal patterns. Caterwaul syntax trees fall into this category. This is distinct from the structure driver
 //   above because it doesn't iterate through properties, just from 0 to the last element as determined by the 'length' property.
 
     $.parser.array_state     = capture [step(p, v) = this.input() *[this.change({input: x, position: xi})] -seq] /!$.parser.logical_state,
 
-//   Structure combinators.
+  // Structure combinators.
 //   Unlike string combinators, some of these are based on position and others are based on value predicates. This is due to the common use case for structural parsing: we want to traverse some
 //   structure and manipulate values based on some property of their paths. Terminal combinators, then, accept or reject paths based on their current position. What we actually need is a
 //   higher-order combinator that maps the current state's position into value-space. More generally, we need a proxy for a state that can map any aspect of that state into its value space.
