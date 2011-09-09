@@ -173,10 +173,13 @@ caterwaul.js_all()(function ($) {
 
   // Mapping combinator.
 //   This lets you remain in combinator-space (as opposed to state-space) while mapping over values. There are two such mapping combinators; one is a flat-map and the other is a componentwise
-//   map.
+//   map. Variants exist in case you want access to the state in its entirety.
 
-    map(p, f)(states)      = p(states) *[x.map(f)] -seq,
-    flat_map(p, f)(states) = p(states) *~!~[f(x.value()) *y[x.map(delay in y)]] -seq],
+    map(p, f)(states)            = p(states) *[x.map(f)] -seq,
+    flat_map(p, f)(states)       = p(states) *~!~[f(x.value()) *y[x.map(delay in y)]] -seq,
+
+    map_state(p, f)(states)      = p(states) *  [f(x)] -seq,
+    flat_map_state(p, f)(states) = p(states) *~![f(x)] -seq],
 
 // Data type drivers.
 // This is where we tie the parsers to actual data types. Each data type driver should provide these methods:
