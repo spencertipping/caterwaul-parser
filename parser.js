@@ -141,7 +141,7 @@ caterwaul.js_all()(function ($) {
     manyc(p)(states)                 = $.parser.state_matrix(states) /~!step /seq /!$.parser.row_null_states_from -where [iterate = $.parser.step_matrix_mutable_null(p),
                                                                                                                           step(m) = $.parser.has_non_null_states(m) ? iterate(m) : null],
     many(p, join)                    = f -where [f(states) = f(states), f = p /-join/ f /-$.parser.alt/ p],
-    optional(p)                      = p /-$.parser.alt/ zero,
+    optional(p)                      = p /-$.parser.alt/ $.parser.zero,
 
     has_non_null_states(m)           = m |r[r[r.length - 1]] |seq,
 
