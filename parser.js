@@ -169,7 +169,14 @@ caterwaul.js_all()(function ($) {
 //   This is used to adapt linear terminal combinators to be used in a nonlinear context. It assumes that the linear combinator maps a truthy parse state into either another truthy parse state or
 //   a null value.
 
-    pluralize(p)(states) = states %~!p -seq],
+    pluralize(p)(states) = states %~!p -seq,
+
+  // Mapping combinator.
+//   This lets you remain in combinator-space (as opposed to state-space) while mapping over values. There are two such mapping combinators; one is a flat-map and the other is a componentwise
+//   map.
+
+    map(p, f)(states)      = p(states) *[x.map(f)] -seq,
+    flat_map(p, f)(states) = p(states) *~!~[f(x.value()) *y[x.map(delay in y)]] -seq],
 
 // Data type drivers.
 // This is where we tie the parsers to actual data types. Each data type driver should provide these methods:
