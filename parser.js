@@ -104,8 +104,9 @@ caterwaul.js_all()(function ($) {
 //   tricky given that we're potentially cloning them on every step. This logic is captured by step_matrix_mutable(), which optimizes linear cases. (step_matrix_immutable doesn't employ this
 //   optimization, which may be safer if you want to preserve intermediate matrices.)
 
-    bfs(ps = arguments)(states)  = ps /[states][x /-memo/ x0] -seq,
-    bfc(ps = arguments)(states)  = ps /[states /!$.parser.state_matrix][step(x)(x0)] /seq /!$.parser.row_composite_states_from -where [step = $.parser.step_matrix_mutable],
+    bfs(ps = parsers('bfs', arguments), annotate(result, 'bfs', ps))(states) = ps /[states][x /-memo/ x0] -seq,
+    bfc(ps = parsers('bfc', arguments), annotate(result, 'bfc', ps))(states) = ps /[states /!$.parser.state_matrix][step(x)(x0)] /seq /!$.parser.row_composite_states_from
+                                                                               -where [step = $.parser.step_matrix_mutable],
 
     state_matrix(states)         = states *[[x]] -seq,
     step_matrix_mutable(p)(m)    = m *~!r[xs.length === 1 ? r.push(xs[0]) && [r] : xs *~[r + [x]] -seq, where [xs = p /-memo_single/ r[r.length - 1]]] -seq,
@@ -119,8 +120,8 @@ caterwaul.js_all()(function ($) {
 
   // Put differently, alt() introduces a cut into the search, whereas all() does not.
 
-    alt(ps = arguments)(states) = states *~!state[ps   |[x /-memo_single/ state -re [it.length && it]] |seq || []] -seq,
-    all(ps = arguments)(states) = states *~!state[ps *~![x /-memo_single/ state]] -seq,
+    alt(ps = parsers('alt', arguments), annotate(result, 'alt', ps))(states) = states *~!state[ps   |[x /-memo_single/ state -re [it.length && it]] |seq || []] -seq,
+    all(ps = parsers('all', arguments), annotate(result, 'all', ps))(states) = states *~!state[ps *~![x /-memo_single/ state]] -seq,
 
   // Repetition combinators.
 //   Because there are multiple types of joining, repetition is not as simple as it is for a linear parser. However, repetition can be expressed as recursion and a join:
@@ -138,50 +139,48 @@ caterwaul.js_all()(function ($) {
 //   means that some rows have fewer columns than others. In order to deal with this in a breadth-first way, we need to keep track of which states have terminated and stop iterating those while
 //   simultaneously flat-mapping others. I'm doing this by appending a null entry to terminated arrays. The iteration is done when all rows end with null.
 
-    manyc(p)(states)                 = $.parser.state_matrix(states) /~!step /seq /!$.parser.row_null_states_from -where [iterate = $.parser.step_matrix_mutable_null(p),
-                                                                                                                          step(m) = $.parser.has_non_null_states(m) ? iterate(m) : null],
-    many(p, join)                    = f -where [j         = join || $.parser.bfs,
-                                                 f(states) = f(states), f = p /-j/ f /-$.parser.alt/ p],
+    manyc(p, annotate(result, 'manyc', [p]))(states)   = $.parser.state_matrix(states) /~!step /seq /!$.parser.row_null_states_from
+                                                         -where [iterate = $.parser.step_matrix_mutable_null(p), step(m) = $.parser.has_non_null_states(m) ? iterate(m) : null],
 
-    optional(p)                      = p /-$.parser.alt/ $.parser.zero,
+    many(p, join, annotate(result, 'many', [p, join])) = f -where [j = join || $.parser.bfs, f(states) = f(states), f = p /-j/ annotate(f, 'recursive', []) /-$.parser.alt/ p],
 
-    has_non_null_states(m)           = m |r[r[r.length - 1]] |seq,
+    optional(p, annotate(result, 'optional', [p]))     = p /-$.parser.alt/ $.parser.zero(),
 
     step_matrix_immutable_null(p)(m) = m *~!r[xs ? xs.length ? xs *~[r + [x]] -seq : [r + [null] -seq] : [r], where [xs = r[r.length - 1] -re [it && p /-memo_single/ it]]] -seq,
-
     step_matrix_mutable_null(p)(m)   = m *~!r[xs ? l ? l === 1 ? r.push(xs[0]) && [r] : xs *~[r + [x]] -seq : r.push(null) && [r] : [r],
                                               where [xs = r[r.length - 1] -re [it && p /-memo_single/ it], l = xs && xs.length]] -seq,
 
+    has_non_null_states(m)           = m |r[r[r.length - 1]] |seq,
     row_null_states_from(ms)         = ms[ms.length - 1] *r[r[r.length - 2].map("r.slice(1, r.length - 1) *[x.value()] -seq".qf)] /seq,
 
   // Trivial combinators.
 //   Most combinator libraries are modeled to have separate zero-or-more, one-or-more, and zero-or-one functions. This one is different in that it provides a universal zero combinator that
 //   consumes nothing and does nothing. You can use it with alternatives to form optional rules. Similarly uninteresting is the fail combinator, which always rejects its input.
 
-    zero(states) = states,
-    fail(states) = [],
+    zero(annotate(result, 'zero', []))(states) = states,
+    fail(annotate(result, 'fail', []))(states) = [],
 
   // Zero-length combinators.
 //   These don't impact the parse state in any way, but they can cause a parse to fail by rejecting certain branches. They are more commonly known as lookahead combinators.
 
-    match(p)(states)  = states % [memo_single(p, x).length] -seq,
-    reject(p)(states) = states %![memo_single(p, x).length] -seq,
+    match(p,  annotate(result, 'match',  [p]))(states) = states % [memo_single(p, x).length] -seq,
+    reject(p, annotate(result, 'reject', [p]))(states) = states %![memo_single(p, x).length] -seq,
 
   // Pluralization combinator.
 //   This is used to adapt linear terminal combinators to be used in a nonlinear context. It assumes that the linear combinator maps a truthy parse state into either another truthy parse state or
-//   a null value.
+//   a null/falsy value.
 
-    pluralize(p)(states) = states %~!p -seq,
+    pluralize(p, annotate(result, 'pluralize', [p]))(states) = states %~!p -seq,
 
   // Mapping combinator.
 //   This lets you remain in combinator-space (as opposed to state-space) while mapping over values. There are two such mapping combinators; one is a flat-map and the other is a componentwise
 //   map. Variants exist in case you want access to the state in its entirety.
 
-    map(p, f)(states)            = p(states) *[x.map(f)] -seq,
-    flat_map(p, f)(states)       = p(states) *~!~[f(x.value()) *y[x.map(delay in y)]] -seq,
+    map(p, f,            annotate(result, 'map',            [p, f]))(states) = p(states) *[x.map(f)] -seq,
+    flat_map(p, f,       annotate(result, 'flat_map',       [p, f]))(states) = p(states) *~!~[f(x.value()) *y[x.map(delay in y)]] -seq,
 
-    map_state(p, f)(states)      = p(states) *  [f(x)] -seq,
-    flat_map_state(p, f)(states) = p(states) *~![f(x)] -seq],
+    map_state(p, f,      annotate(result, 'map_state',      [p, f]))(states) = p(states) *  [f(x)] -seq,
+    flat_map_state(p, f, annotate(result, 'flat_map_state', [p, f]))(states) = p(states) *~![f(x)] -seq],
 
 // Data type drivers.
 // This is where we tie the parsers to actual data types. Each data type driver should provide these methods:
@@ -225,11 +224,11 @@ caterwaul.js_all()(function ($) {
 //   This is a probably-linear parser. I say probably because it's simple enough to implement a subclass of it that jumps around within the string. However, we don't assume that initially; for
 //   our purposes we just define a linear, forward string traversal pattern.
 
-    $.parser.linear_string_state = capture [step(p, v)  = [this.change({position: p + 1, value: v})],
-                                            id()        = this.position(),
-                                            defaults    = {position: 0, value: null}] /!$.parser.logical_state /-$.merge/
+    $.parser.linear_string_state = capture [step(p, v) = [this.change({position: p + 1, value: v})],
+                                            id()       = this.position(),
+                                            defaults   = {position: 0, value: null}] /!$.parser.logical_state /-$.merge/
 
-                                   capture [end(states) = states %[x.position() === x.input().length] -seq],
+                                   capture [end(annotate(result, 'end', []))(states) = states %[x.position() === x.input().length] -seq],
 
   // String combinators.
 //   Whether you're using linear or nonlinear parsing, you'll probably want some terminal string combinators to work with. These are all regexp-based, hence the dependency on Caterwaul's regexp
@@ -245,24 +244,29 @@ caterwaul.js_all()(function ($) {
 
     $.merge($.parser, capture [anchor_regexp(r) = new RegExp('^#{body}$', flags) -where [pieces = /^\/(.*)\/(\w*)$/.exec(r.toString()), body = pieces[1], flags = pieces[2]],
 
-                               linear_string(s)(states) = states *~![x.input().substr(x.position(), s.length) === s ? x.next(s.length, s) : []] -seq,
-                               linear_regexp(r)         = matcher -where [minimum_length   = $.regexp(r).minimum_length() || 1,
-                                                                          anchored         = r /!$.parser.anchor_regexp,
-                                                                          matcher(states)  = states *~!match_one -seq,
-                                                                          match_one(state) = new_states
-                                                                                     -where [s              = state.input(),
-                                                                                             offset         = state.position(),
-                                                                                             maximum_length = s.length - offset,
+                               linear_string(s, annotate(result, 'linear_string', [s]))(states) = states *~![x.input().substr(x.position(), s.length) === s ? x.next(s.length, s) : []] -seq,
+                               linear_regexp(r, annotate(result, 'linear_regexp', [r]))         = matcher
+                                                                                          -where [minimum_length   = $.regexp(r).minimum_length() || 1,
+                                                                                                  anchored         = r /!$.parser.anchor_regexp,
+                                                                                                  matcher(states)  = states *~!match_one -seq,
+                                                                                                  match_one(state) = new_states
+                                                                                                             -where [s              = state.input(),
+                                                                                                                     offset         = state.position(),
+                                                                                                                     maximum_length = s.length - offset,
 
-                                                                                             match(l)       = l <= maximum_length && anchored.test(s.substr(offset, l)),
-                                                                                             longest(l)     = l /!match ? longest(l << 1) : l,
-                                                                                             valid(l, m, u) = l < u - 1 ? m /!match ? valid(m, m + u >> 1, u) : valid(l, l + m >> 1, m) : m,
+                                                                                                                     match(l)       = l <= maximum_length && anchored.test(s.substr(offset, l)),
+                                                                                                                     longest(l)     = l /!match ? longest(l << 1) : l,
+                                                                                                                     valid(l, m, u) = l < u - 1 ? m /!match ? valid(m, m + u >> 1, u) :
+                                                                                                                                                              valid(l, l + m >> 1, m) : m,
 
-                                                                                             new_states     = minimum_length /!match ?
-                                                                                                                state.next(match_length, anchored.exec(s.substr(offset, match_length)))
-                                                                                                                -where [max          = minimum_length /!longest,
-                                                                                                                        match_length = valid(minimum_length, minimum_length + max >> 1, max)] :
-                                                                                                                []]]]),
+                                                                                                                     new_states     = minimum_length /!match ?
+                                                                                                                                        state.next(match_length,
+                                                                                                                                                   anchored.exec(s.substr(offset, match_length)))
+                                                                                                                                        -where [max          = minimum_length /!longest,
+                                                                                                                                                match_length = valid(minimum_length,
+                                                                                                                                                                     minimum_length + max >> 1,
+                                                                                                                                                                     max)] :
+                                                                                                                                        []]]]),
 
   // Structure driver.
 //   This is used when you have a set of objects and/or arrays. The idea is to traverse the structure from the top down in some way, optionally collecting path-related information. Atoms, then,
@@ -304,6 +308,17 @@ caterwaul.js_all()(function ($) {
                                                key   = '@#{s_key}_#{f_key}',            // Prefix with @ to eliminate the possibility of collisions with other properties
                                                value = f_key && s_key && table.hasOwnProperty(key) ? table[key] : (table[key] = f([state]))],
 
-         memo(f, states)       = states *~![f /-memo_single/ x] -seq]})(caterwaul);
+         memo(f, states)       = states *~![f /-memo_single/ x] -seq,
+
+// Argument conversion.
+// These functions are used both to verify incoming arguments and to annotate results. Caterwaul parser combinators are marked with the 'caterwaul_parser' attribute; this indicates that the
+// function can be used with other Caterwaul parsers.
+
+         parsers(name, xs)     = xs *! [x                  || raise [new Error('#{name}: undefined parser given as parameter #{xi}')]]
+                                    *~![x instanceof Array ? x : [x]]
+                                    *! [x.caterwaul_parser || raise [new Error('#{name}: #{x} is not marked with the .caterwaul_parser attribute')]] -seq,
+
+         annotate(f, name, xs) = f -se [it.toString()       = '#{name}(#{xs *[x.toString()] -seq -re- it.join(", ")})',
+                                        it.caterwaul_parser = true]]})(caterwaul);
 
 // Generated by SDoc 
