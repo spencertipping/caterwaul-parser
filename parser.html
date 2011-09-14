@@ -3937,6 +3937,22 @@ directed structures.
 
   $.parser = capture [
 
+  Parser type annotation.
+  This is useful for writing your own parsers or forward definitions. You need to annotate them in order for them to be usable with other combinators. So, for example, suppose we're parsing
+  arithmetic expressions with parentheses and you need a forward definition for the recursive 'expression' rule. You'd need to annotate the shell function like this:
+
+  | expression(states) = expression(states),
+    paren_group        = bfs(linear_string('('), annotate(expression, 'expression', []), linear_string(')')),
+    sum                = ...,
+    term               = ...,
+    expression         = alt(paren_group, sum)
+
+  Along the same line of thought is the 'parsers' function, which takes an array-like thing of parsers and type-checks each one. It automatically throws an error if any of them doesn't look
+  like a parser.
+
+    annotate = annotate,
+    parsers  = parsers,
+
   Traversal combinators.
   Linear parser combinator libraries generally implement a 'seq' or 'join' combinator that causes one parser to be activated and then followed by another one. Because there is only one path to
   follow, there isn't a distinction between breadth-first and depth-first searching. When you have multiple paths, though, the ordering becomes important. It may be the case that a path never
