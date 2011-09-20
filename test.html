@@ -114,6 +114,9 @@
 //   cause a following / to indicate division. By the way, the operator ! must be in the table even though it is never used. The reason is that it is a substring of !==; without it, !== would
 //   fail to parse.
 
+  // Caterwaul 1.1.3 adds support for Unicode characters, even though they're technically not allowed as identifiers in Javascript. All Unicode characters are treated as identifiers since
+//   Javascript assigns no semantics to them.
+
        lex_op = hash('. new ++ -- u++ u-- u+ u- typeof u~ u! ! * / % + - << >> >>> < > <= >= instanceof in == != === !== & ^ | && || ? = += -= *= /= %= &= |= ^= <<= >>= >>>= : , ' +
                      'return throw case var const break continue void else u; ;'),
 
@@ -699,7 +702,10 @@ is_prefix_unary_operator: function () {return has(parse_r, this.data)},         
 //       that you could write 'x / 5', and it is obvious that the / means division. But if you wrote 'return / 5', the / would be a regexp delimiter because return is an operator, not a value. So
 //       at the very end, in addition to assigning t, we also set the re flag if the word turns out to be an operator.
 
-       else {while (++i < l && lex_ident[cs(i)]); re = has(lex_op, t = s.substring(mark, i))}
+      // Extended ASCII and above are considered identifiers. This allows Caterwaul to parse Unicode source, even though it will fail to distinguish between Unicode operator symbols and Unicode
+//       letters.
+
+       else {while (++i < l && (lex_ident[c = cs(i)] || c > 0x7f)); re = has(lex_op, t = s.substring(mark, i))}
 
       // Token unification.
 //       t will contain true, false, or a string. If false, no token was lexed; this happens when we read a comment, for example. If true, the substring method should be used. (It's a shorthand to
@@ -1179,15 +1185,19 @@ is_prefix_unary_operator: function () {return has(parse_r, this.data)},         
 //   parse trees appropriately.
 
     var infix_function = function (node) {var d = node.data, left, fn;
-                                          if ((d === '/' || d === '|') && (left = node[0]).data === d && left[1] && left[1].data === 'u-' && (fn = left[1][0])) {
-                                            // Pre-expand macros in the left-hand side.
-                                            for (var comma = new $.syntax(','), n = this(left[0]); n.data === d; n = n[0]) comma.push(n[1]);
-                                            comma.push(n);
+                                          if ((d === '/' || d === '|') && (left = node[0]).data === d && left[1] && left[1].data === 'u-' && (fn = left[1][0]))
+                                            return new $.syntax('()', fn, this(node[0][0]).flatten(d).push(this(node[1])).with_data(',').unflatten())};
 
-                                            // The comma arguments are backwards, so reverse them in-place:
-                                            for (var i = 0, l = comma.length, temp; i < l >> 1; ++i) temp = comma[i], comma[i] = comma[l - i - 1], comma[l - i - 1] = temp;
+  // Infix method application.
+//   This is subtly different from infix function application in that a method is called. You might want this when dealing with lots of nested methods, which can otherwise become hard to manage.
+//   Like infix function application, this macro respects precedence and associativity.
 
-                                            return new $.syntax('()', fn, comma.push(this(node[1])).unflatten())}};
+  // | f /g /~a/ h /~b/ i          // -> ((f).a(g, h)).b(i)
+
+    var infix_method = function (node) {var d = node.data, left, fn;
+                                        if ((d === '/' || d === '|') && (left = node[0]).data === d && left[1] && left[1].data === 'u~' && (fn = left[1][0])) {
+                                          var xs = [].slice.call(this(node[0][0]).flatten(d)), object = xs.shift();
+                                          return new $.syntax('()', new $.syntax('.', new $.syntax('(', object), fn), new $.syntax(',', xs, this(node[1])).unflatten())}};
 
   // Postfix function application.
 //   This is a bit simpler than infix function application and is used when you have a unary function. Sometimes it's simpler to think of a function as a filter than as a wrapper, and this macro
@@ -1283,7 +1293,7 @@ is_prefix_unary_operator: function () {return has(parse_r, this.data)},         
 
     var each_node = function (node) {return string_interpolator.call(this, node) || literal_modifier.call(this, node) ||
                                             node.length && (modifier.call(this, node) || function_destructure.call(this, node) ||
-                                                            infix_function.call(this, node) || postfix_function.call(this, node))},
+                                                            infix_function.call(this, node) || infix_method.call(this, node) || postfix_function.call(this, node))},
 
         result    = macroexpander ? $(function (node) {return macroexpander.call(this, node) || each_node.call(this, node)}) :
                                     $(each_node);
@@ -1923,6 +1933,7 @@ caterwaul.js_all()(function ($) {
   $.regexp(r, options) = $.regexp.parse.apply(this, arguments),
   $.regexp.syntax      = regexp_ctor /-$.syntax_subclass/ regexp_methods,
   $.regexp.parse       = regexp_parse,
+  $.regexp.compile     = regexp_compile,
 
   where [// Implementation note:
          // Copy-constructor functionality is triggered by passing an instance of the tree into its own constructor. The goal is to obtain a new instance of the same kind of tree, but without
@@ -1937,6 +1948,8 @@ caterwaul.js_all()(function ($) {
          regexp_methods              = capture [i()                     = this.context.flags.i,
                                                 m()                     = this.context.flags.m,
                                                 g()                     = this.context.flags.g,
+
+                                                concat(x)               = new this.constructor(',', this.context, this, x),
 
                                                 match_groups()          = this.context.groups,
 
@@ -2000,6 +2013,8 @@ caterwaul.js_all()(function ($) {
                                                                           this.is_join()                                     ? '#{this[0].toString()}#{this[1].toString()}' :
                                                                           this.is_atom()                                     ? /^\w{2,}$/.test(this.data) ? '(?:#{this.data})' : this.data :
                                                                                                                                this.data],
+
+         regexp_compile(r)          = new RegExp(r.toString(), [r.i() ? 'i' : '', r.m() ? 'm' : '', r.g() ? 'g' : ''].join('')),
 
          regexp_parse(r, options)   = join(toplevel, end)({i: 0}) -re [it ? it.v[0] : raise [new Error('caterwaul.regexp(): failed to parse #{r.toString()}')]]
 
