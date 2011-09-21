@@ -330,9 +330,9 @@ caterwaul.js_all()(function ($) {
 // These functions are used both to verify incoming arguments and to annotate results. Caterwaul parser combinators are marked with the 'caterwaul_parser' attribute; this indicates that the
 // function can be used with other Caterwaul parsers.
 
-         parsers(name, xs)     = xs *! [x                  || raise [new Error('#{name}: undefined parser given as parameter #{xi}')]]
-                                    *~![x instanceof Array ? x : [x]]
-                                    *! [x.caterwaul_parser || raise [new Error('#{name}: #{x} is not marked with the .caterwaul_parser attribute')]] -seq,
+         parsers(name, xs)     = +xs *! [x                  || raise [new Error('#{name}: undefined parser given as parameter #{xi}')]]
+                                     *~![x instanceof Array ? x : [x]]
+                                     *! [x.caterwaul_parser || raise [new Error('#{name}: #{x} is not marked with the .caterwaul_parser attribute')]] -seq,
 
          annotate(f, name, xs) = f -se [it.toString()       = '#{name}(#{xs *[x.toString()] -seq -re- it.join(", ")})',
                                         it.caterwaul_parser = true]]})(caterwaul);
