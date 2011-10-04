@@ -241,6 +241,9 @@ parse_associates_right = hash('= += -= *= /= %= &= ^= |= <<= >>= >>>= ~ ! new ty
 //     the replaced node's previous children. (Nor is there much point in forcibly iterating over the new node's children, since presumably they are already processed.) If a mapping function
 //     returns something falsy, it will have exactly the same effect as returning the node without modification.
 
+    // Recursive map() and each() variants have another form starting with Caterwaul 1.1.3. These are pmap() and peach(), which recursively traverse the tree in post-order. That is, the node
+//     itself is visited after its children are.
+
     // Using the old s() to do gensym-safe replacement requires that you invoke it only once, and this means that for complex macroexpansion you'll have a long array of values. This isn't ideal,
 //     so syntax trees provide a replace() function that handles replacement more gracefully:
 
@@ -251,6 +254,9 @@ parse_associates_right = hash('= += -= *= /= %= &= ^= |= <<= >>= >>>= ~ ! new ty
 
       reach: function (f) {f(this); this.each(function (n) {n.reach(f)}); return this},
       rmap:  function (f) {var r = f(this); return ! r || r === this ? this.map(function (n) {return n.rmap(f)}) : r.rmap === undefined ? new this.constructor(r) : r},
+
+      peach: function (f) {this.each(function (n) {n.peach(f)}); f(this); return this},
+      pmap:  function (f) {var t = this.map(function (n) {return n.pmap(f)}); return f(t)},
 
       clone: function () {return this.rmap(function () {return false})},
 
@@ -2383,14 +2389,16 @@ caterwaul.js_all()(function ($) {
               default_value             = defaults.value,
               id_function               = defaults.id || "++memo_id".qf,
 
-              ctor(i, p, v, memo_table) = this -se [it.i = i, it.p = p || default_position, it.v = v || default_value, it.table = memo_table || {}],
+              ctor(i, p, v, memo_table) = arguments.length > 1 ? this -se [it.i = i, it.p = p,                it.v = v,             it.table = memo_table] :
+                                                                 this -se [it.i = i, it.p = default_position, it.v = default_value, it.table = {}],
 
               methods_for(step)         = capture [id()           = this.cached_id || (this.cached_id = id_function.call(this)),
                                                    input()        = this.i,  next(n, v)   = n === 1 ? step.call(this, this.p, v) : this.next(n - 1, v) *~![x.next(1, v)] -seq,
                                                    position()     = this.p,  map(f)       = new this.constructor(this.i, this.p, this.v /!f, this.table),
                                                    value()        = this.v,  memo_table() = this.table,
                                                    toString()     = '#{this.i} @ #{this.p} : #{this.v}',
-                                                   change(values) = new this.constructor(values.input || this.i, values.position || this.p, values.value || this.v, this.table)]],
+                                                   change(values) = new this.constructor('input' in values ? values.input : this.i, 'position' in values ? values.position : this.p,
+                                                                                         'value' in values ? values.value : this.v, this.table)]],
 
   // String driver.
 //   This is a probably-linear parser. I say probably because it's simple enough to implement a subclass of it that jumps around within the string. However, we don't assume that initially; for
@@ -2398,9 +2406,9 @@ caterwaul.js_all()(function ($) {
 
     $.parser.linear_string_state = capture [step(p, v) = [this.change({position: p + 1, value: v})],
                                             id()       = this.position(),
-                                            defaults   = {position: 0, value: null}] /!$.parser.logical_state /-$.merge/
+                                            defaults   = {position: 0}] /!$.parser.logical_state
 
-                                   capture [end(annotate(result, 'end', []))(states) = states %[x.position() === x.input().length] -seq],
+                        /-$.merge/ capture [end(annotate(result, 'end', []))(states) = states %[x.position() === x.input().length] -seq],
 
   // String combinators.
 //   Whether you're using linear or nonlinear parsing, you'll probably want some terminal string combinators to work with. These are all regexp-based, hence the dependency on Caterwaul's regexp
@@ -2444,25 +2452,25 @@ caterwaul.js_all()(function ($) {
 //   This is used when you have a set of objects and/or arrays. The idea is to traverse the structure from the top down in some way, optionally collecting path-related information. Atoms, then,
 //   are the keys that dereference elements in the structure.
 
-    $.parser.structure_state = capture [step(p, v) = this.input() /pairs *[this.change({input: x[1], position: x[0]})] -seq] /!$.parser.logical_state,
+    $.parser.structure_state = capture [step(p, v) = this.input() /pairs *[this.change({value: v, input: x[1], position: x[0]})] -seq] /!$.parser.logical_state,
 
   // Array-like driver.
 //   This is used when you know that you've got objects that will support array-like traversal patterns. Caterwaul syntax trees fall into this category. This is distinct from the structure driver
 //   above because it doesn't iterate through properties, just from 0 to the last element as determined by the 'length' property.
 
-    $.parser.array_state     = capture [step(p, v) = this.input() *[this.change({input: x, position: xi})] -seq] /!$.parser.logical_state,
+    $.parser.array_state     = capture [step(p, v) = +this.input() *[this.change({value: v, input: x, position: xi})] -seq] /!$.parser.logical_state,
 
   // Structure combinators.
 //   Unlike string combinators, some of these are based on position and others are based on value predicates. This is due to the common use case for structural parsing: we want to traverse some
 //   structure and manipulate values based on some property of their paths. Terminal combinators, then, accept or reject paths based on their current position. What we actually need is a
 //   higher-order combinator that maps the current state's position into value-space. More generally, we need a proxy for a state that can map any aspect of that state into its value space.
 
-    $.merge(($.parser.proxy_state(s, value_function) = this -se [it.state = s, it.value_function = value_function]).prototype,
+    ($.parser.proxy_state(s, value_function) = this -se [it.state = s, it.value_function = value_function]).prototype
 
-    capture [id()       = this.cached_id || (this.cached_id = ++memo_id),
-             input()    = this.value_function.call(this),  next(n, v)   = this.state.next(n, v),
-             position() = this.state.position(),           map(f)       = this.state.map(f),
-             value()    = this.state.value(),              memo_table() = this.state.memo_table()]),
+    /-$.merge/ capture [id()       = this.cached_id || (this.cached_id = ++memo_id),
+                        input()    = this.value_function.call(this),  next(n, v)   = this.state.next(n, v),
+                        position() = this.state.position(),           map(f)       = this.state.map(f),
+                        value()    = this.state.value(),              memo_table() = this.state.memo_table()],
 
     $.parser /-$.merge/ capture [position_state(s)   = new $.parser.proxy_state(s, "this.position()".qf),
                                  position(p)(states) = p(states *$.parser.position_state -seq)],
@@ -2509,6 +2517,68 @@ $(function () {
 // Unit tests.
 // These are quick, visible assertions to make sure that the setup works properly. The test_case function is called automatically by t(), which is customized to work on whatever platform you're
 // running under (e.g. node.js or a browser).
+
+
+
+// Introduction.
+// These tests might actually fail, as opposed to the REPL tests which are just for show.
+
+caterwaul.js_all()(function ($) {
+
+// Driver tests.
+// It isn't much use testing the parser stuff until we know that the drivers are solid. Run each driver through a series of operations to make sure it behaves in a reasonable way.
+
+  // String driver.
+//   This one is pretty simple. It should advance through the string.
+
+  initial.input()                   /-eq/ s         -se-
+  initial.position()                /-eq/ 0         -se-
+  initial.value()                   /-eq/ undefined -se-
+  initial.next(1, 42).length        /-eq/ 1         -se-
+  initial.next(1, 42)[0].input()    /-eq/ s         -se-
+  initial.next(1, 42)[0].position() /-eq/ 1         -se-
+  initial.next(1, 42)[0].value()    /-eq/ 42        -where [s = 'foo', initial = new linear_string_state(s)],
+
+  // Structure driver.
+//   This one should dig through a structure, ultimately traversing all children. It should work for both arrays and objects.
+
+  initial.input()                   /-eq/ root        -se-
+  initial.position()                /-eq/ undefined   -se-
+  initial.value()                   /-eq/ undefined   -se-
+  initial.next(1, 42).length        /-eq/ 2           -se-
+  initial.next(1, 42)[0].input()    /-eq/ first_child -se-
+  initial.next(1, 42)[0].position() /-eq/ 'c1'        -se-
+  initial.next(1, 42)[0].value()    /-eq/ 42          -se-
+  initial.next(1, 43)[1].input()    /-eq/ other_child -se-
+  initial.next(1, 43)[1].position() /-eq/ 'c2'        -se-
+  initial.next(1, 43)[1].value()    /-eq/ 43          -where [first_child = {}, other_child = {}, root = {c1: first_child, c2: other_child}, initial = new structure_state(root)],
+
+  // Array driver.
+//   This one ignores non-array-like properties and just goes through the numbered ones. I'm going to use it to test Caterwaul syntax trees.
+
+  initial.input()                   /-eq/ tree       -se-
+  initial.position()                /-eq/ undefined  -se-
+  initial.value()                   /-eq/ undefined  -se-
+  initial.next(1, 42).constructor   /-eq/ Array      -se-
+  initial.next(1, 42).length        /-eq/ 2          -se-
+  initial.next(1, 42)[0].input()    /-eq/ left_node  -se-
+  initial.next(1, 42)[0].position() /-eq/ 0          -se-
+  initial.next(1, 42)[0].value()    /-eq/ 42         -se-
+  initial.next(1, 43)[1].input()    /-eq/ right_node -se-
+  initial.next(1, 43)[1].position() /-eq/ 1          -se-
+  initial.next(1, 43)[1].value()    /-eq/ 43         -where [tree = '3 + 4 * 5'.qs, left_node = tree[0], right_node = tree[1], initial = new array_state(tree)],
+
+// Traversal tests.
+// These make sure that the various traversal combinators do what they're supposed to.
+
+  using [caterwaul.parser],
+
+  where [eq(x, y) = x === y || null['#{x} should === #{y}']]})(caterwaul);
+
+// Generated by SDoc 
+
+
+
 
 caterwaul.js_all()(function () {
   parsers = [],

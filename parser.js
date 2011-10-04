@@ -227,14 +227,16 @@ caterwaul.js_all()(function ($) {
               default_value             = defaults.value,
               id_function               = defaults.id || "++memo_id".qf,
 
-              ctor(i, p, v, memo_table) = this -se [it.i = i, it.p = p || default_position, it.v = v || default_value, it.table = memo_table || {}],
+              ctor(i, p, v, memo_table) = arguments.length > 1 ? this -se [it.i = i, it.p = p,                it.v = v,             it.table = memo_table] :
+                                                                 this -se [it.i = i, it.p = default_position, it.v = default_value, it.table = {}],
 
               methods_for(step)         = capture [id()           = this.cached_id || (this.cached_id = id_function.call(this)),
                                                    input()        = this.i,  next(n, v)   = n === 1 ? step.call(this, this.p, v) : this.next(n - 1, v) *~![x.next(1, v)] -seq,
                                                    position()     = this.p,  map(f)       = new this.constructor(this.i, this.p, this.v /!f, this.table),
                                                    value()        = this.v,  memo_table() = this.table,
                                                    toString()     = '#{this.i} @ #{this.p} : #{this.v}',
-                                                   change(values) = new this.constructor(values.input || this.i, values.position || this.p, values.value || this.v, this.table)]],
+                                                   change(values) = new this.constructor('input' in values ? values.input : this.i, 'position' in values ? values.position : this.p,
+                                                                                         'value' in values ? values.value : this.v, this.table)]],
 
   // String driver.
 //   This is a probably-linear parser. I say probably because it's simple enough to implement a subclass of it that jumps around within the string. However, we don't assume that initially; for
@@ -242,9 +244,9 @@ caterwaul.js_all()(function ($) {
 
     $.parser.linear_string_state = capture [step(p, v) = [this.change({position: p + 1, value: v})],
                                             id()       = this.position(),
-                                            defaults   = {position: 0, value: null}] /!$.parser.logical_state /-$.merge/
+                                            defaults   = {position: 0}] /!$.parser.logical_state
 
-                                   capture [end(annotate(result, 'end', []))(states) = states %[x.position() === x.input().length] -seq],
+                        /-$.merge/ capture [end(annotate(result, 'end', []))(states) = states %[x.position() === x.input().length] -seq],
 
   // String combinators.
 //   Whether you're using linear or nonlinear parsing, you'll probably want some terminal string combinators to work with. These are all regexp-based, hence the dependency on Caterwaul's regexp
@@ -288,25 +290,25 @@ caterwaul.js_all()(function ($) {
 //   This is used when you have a set of objects and/or arrays. The idea is to traverse the structure from the top down in some way, optionally collecting path-related information. Atoms, then,
 //   are the keys that dereference elements in the structure.
 
-    $.parser.structure_state = capture [step(p, v) = this.input() /pairs *[this.change({input: x[1], position: x[0]})] -seq] /!$.parser.logical_state,
+    $.parser.structure_state = capture [step(p, v) = this.input() /pairs *[this.change({value: v, input: x[1], position: x[0]})] -seq] /!$.parser.logical_state,
 
   // Array-like driver.
 //   This is used when you know that you've got objects that will support array-like traversal patterns. Caterwaul syntax trees fall into this category. This is distinct from the structure driver
 //   above because it doesn't iterate through properties, just from 0 to the last element as determined by the 'length' property.
 
-    $.parser.array_state     = capture [step(p, v) = this.input() *[this.change({input: x, position: xi})] -seq] /!$.parser.logical_state,
+    $.parser.array_state     = capture [step(p, v) = +this.input() *[this.change({value: v, input: x, position: xi})] -seq] /!$.parser.logical_state,
 
   // Structure combinators.
 //   Unlike string combinators, some of these are based on position and others are based on value predicates. This is due to the common use case for structural parsing: we want to traverse some
 //   structure and manipulate values based on some property of their paths. Terminal combinators, then, accept or reject paths based on their current position. What we actually need is a
 //   higher-order combinator that maps the current state's position into value-space. More generally, we need a proxy for a state that can map any aspect of that state into its value space.
 
-    $.merge(($.parser.proxy_state(s, value_function) = this -se [it.state = s, it.value_function = value_function]).prototype,
+    ($.parser.proxy_state(s, value_function) = this -se [it.state = s, it.value_function = value_function]).prototype
 
-    capture [id()       = this.cached_id || (this.cached_id = ++memo_id),
-             input()    = this.value_function.call(this),  next(n, v)   = this.state.next(n, v),
-             position() = this.state.position(),           map(f)       = this.state.map(f),
-             value()    = this.state.value(),              memo_table() = this.state.memo_table()]),
+    /-$.merge/ capture [id()       = this.cached_id || (this.cached_id = ++memo_id),
+                        input()    = this.value_function.call(this),  next(n, v)   = this.state.next(n, v),
+                        position() = this.state.position(),           map(f)       = this.state.map(f),
+                        value()    = this.state.value(),              memo_table() = this.state.memo_table()],
 
     $.parser /-$.merge/ capture [position_state(s)   = new $.parser.proxy_state(s, "this.position()".qf),
                                  position(p)(states) = p(states *$.parser.position_state -seq)],
