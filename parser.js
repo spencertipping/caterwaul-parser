@@ -123,7 +123,6 @@ caterwaul.js_all()(function ($) {
     bfs(ps = parsers('bfs', arguments), annotate(result, 'bfs', ps))(states) = ps /[states][x /-memo/ x0] -seq,
     bfc(ps = parsers('bfc', arguments), annotate(result, 'bfc', ps))(states) = ps /[states /!$.parser.state_matrix][step(x)(x0)] /seq /!$.parser.row_composite_states_from
                                                                                -where [step = $.parser.step_matrix_mutable],
-
     state_matrix(states)         = states *[[x]] -seq,
     step_matrix_mutable(p)(m)    = m *~!r[xs.length === 1 ? r.push(xs[0]) && [r] : xs *~[r + [x]] -seq, where [xs = p /-memo_single/ r[r.length - 1]]] -seq,
     step_matrix_immutable(p)(m)  = m *~!~r[memo_single(p, r[r.length - 1]) *~[r + [x]]] -seq,
@@ -188,9 +187,14 @@ caterwaul.js_all()(function ($) {
 
     pluralize(p, annotate(result, 'pluralize', [p]))(states) = states %~!p -seq,
 
-  // Mapping combinator.
+  // Mapping combinators.
 //   This lets you remain in combinator-space (as opposed to state-space) while mapping over values. There are two such mapping combinators; one is a flat-map and the other is a componentwise
 //   map. Variants exist in case you want access to the state in its entirety.
+
+  // The iv() function is provided as a special case, and stands for 'input -> value'. It lets you apply some function to the current input (and optionally position) to generate a parse value,
+//   without consuming any input. The idea is to mark the current location without actually consuming anything.
+
+    iv(f,                annotate(result, 'iv',                [f]))(states) = states *[x.change({value: f(x.input(), x.position())})] -seq,
 
     map(p, f,            annotate(result, 'map',            [p, f]))(states) = p(states) *[x.map(f)] -seq,
     flat_map(p, f,       annotate(result, 'flat_map',       [p, f]))(states) = p(states) *~!~[f(x.value()) *y[x.map(delay in y)]] -seq,

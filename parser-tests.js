@@ -47,7 +47,55 @@ caterwaul.js_all()(function ($) {
   initial.next(1, 43)[1].value()    /-eq/ 43         -where [tree = '3 + 4 * 5'.qs, left_node = tree[0], right_node = tree[1], initial = new array_state(tree)],
 
 // Traversal tests.
-// These make sure that the various traversal combinators do what they're supposed to.
+// These make sure that the various traversal combinators do what they're supposed to. This is subtle because a part of the behavior has to do with how eagerly they evaluate things.
+
+  any2([initial]).length        /-eq/ 2     -se-
+  any2([initial])[0].position() /-eq/ 0     -se-
+  any2([initial])[0].input()    /-eq/ left  -se-
+  any2([initial])[0].value()    /-eq/ left  -se-
+  any2([initial])[1].position() /-eq/ 1     -se-
+  any2([initial])[1].input()    /-eq/ right -se-
+  any2([initial])[1].value()    /-eq/ right -se-
+
+  any3([initial]).length        /-eq/ 2        -se-
+  any3([initial])[0].position() /-eq/ 0        -se-
+  any3([initial])[0].input()    /-eq/ right[0] -se-
+  any3([initial])[0].value()    /-eq/ right[0] -se-
+  any3([initial])[1].position() /-eq/ 1        -se-
+  any3([initial])[1].input()    /-eq/ right[1] -se-
+  any3([initial])[1].value()    /-eq/ right[1] -se-
+
+  any2c([initial]).length            /-eq/ 2     -se-
+  any2c([initial])[0].position()     /-eq/ 0     -se-
+  any2c([initial])[0].input()        /-eq/ left  -se-
+  any2c([initial])[0].value().length /-eq/ 2     -se-
+  any2c([initial])[0].value()[0]     /-eq/ tree  -se-
+  any2c([initial])[0].value()[1]     /-eq/ left  -se-
+  any2c([initial])[1].position()     /-eq/ 1     -se-
+  any2c([initial])[1].input()        /-eq/ right -se-
+  any2c([initial])[1].value().length /-eq/ 2     -se-
+  any2c([initial])[1].value()[0]     /-eq/ tree  -se-
+  any2c([initial])[1].value()[1]     /-eq/ right -se-
+
+  any3c([initial]).length            /-eq/ 2        -se-
+  any3c([initial])[0].position()     /-eq/ 0        -se-
+  any3c([initial])[0].input()        /-eq/ right[0] -se-
+  any3c([initial])[0].value().length /-eq/ 3        -se-
+  any3c([initial])[0].value()[0]     /-eq/ tree     -se-
+  any3c([initial])[0].value()[1]     /-eq/ right    -se-
+  any3c([initial])[0].value()[2]     /-eq/ right[0] -se-
+  any3c([initial])[1].position()     /-eq/ 1        -se-
+  any3c([initial])[1].input()        /-eq/ right[1] -se-
+  any3c([initial])[1].value().length /-eq/ 3        -se-
+  any3c([initial])[1].value()[0]     /-eq/ tree     -se-
+  any3c([initial])[1].value()[1]     /-eq/ right    -se-
+  any3c([initial])[1].value()[2]     /-eq/ right[1]
+
+  -where [tree = '3 + 4 * 5'.qs, left = tree[0], right = tree[1], initial = new array_state(tree),
+          any(states) = states *~![x.next(1, x.input())] -seq, any = annotate(any, 'any', []),
+
+          any2  = any /-bfs/ iv("_".qf), any3  = any /any /-bfs/iv("_".qf),
+          any2c = any /-bfc/ iv("_".qf), any3c = any /any /-bfc/iv("_".qf)],
 
   using [caterwaul.parser],
 
