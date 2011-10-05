@@ -694,6 +694,9 @@ caterwaul.js_all()(function ($) {
 // Traversal tests.
 // These make sure that the various traversal combinators do what they're supposed to. This is subtle because a part of the behavior has to do with how eagerly they evaluate things.
 
+  // Breadth-first search combinators.
+//   This code tests bfs() and bfc(), which combine parsers in a breadth-first way (see the parser source documentation for specifics).
+
   any2([initial]).length        /-eq/ 2     -se-
   any2([initial])[0].position() /-eq/ 0     -se-
   any2([initial])[0].input()    /-eq/ left  -se-
@@ -734,13 +737,11 @@ caterwaul.js_all()(function ($) {
   any3c([initial])[1].value().length /-eq/ 3        -se-
   any3c([initial])[1].value()[0]     /-eq/ tree     -se-
   any3c([initial])[1].value()[1]     /-eq/ right    -se-
-  any3c([initial])[1].value()[2]     /-eq/ right[1]
+  any3c([initial])[1].value()[2]     /-eq/ right[1] -where [tree = '3 + 4 * 5'.qs, left = tree[0], right = tree[1], initial = new array_state(tree),
+                                                            any(states) = states *~![x.next(1, x.input())] -seq, any = annotate(any, 'any', []),
 
-  -where [tree = '3 + 4 * 5'.qs, left = tree[0], right = tree[1], initial = new array_state(tree),
-          any(states) = states *~![x.next(1, x.input())] -seq, any = annotate(any, 'any', []),
-
-          any2  = any /-bfs/ iv("_".qf), any3  = any /any /-bfs/iv("_".qf),
-          any2c = any /-bfc/ iv("_".qf), any3c = any /any /-bfc/iv("_".qf)],
+                                                            any2  = any /-bfs/ iv("_".qf), any3  = any /any /-bfs/iv("_".qf),
+                                                            any2c = any /-bfc/ iv("_".qf), any3c = any /any /-bfc/iv("_".qf)],
 
   using [caterwaul.parser],
 
