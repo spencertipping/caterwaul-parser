@@ -135,8 +135,8 @@ caterwaul.js_all()(function ($) {
 
   // Put differently, alt() introduces a cut into the search, whereas all() does not.
 
-    alt(ps = parsers('alt', arguments), annotate(result, 'alt', ps))(states) = states *~!state[ps   |[x /-memo_single/ state -re [it.length && it]] |seq || []] -seq,
-    all(ps = parsers('all', arguments), annotate(result, 'all', ps))(states) = states *~!state[ps *~![x /-memo_single/ state]] -seq,
+    alt(ps = parsers('alt', arguments), annotate(result, 'alt', ps))(states) = states *~! state[ps   |p[p /-memo_single/ state -re [it.length && it]] |seq || []] -seq,
+    all(ps = parsers('all', arguments), annotate(result, 'all', ps))(states) = states *~!~state[ps *~!p[p /-memo_single/ state]] -seq,
 
   // Repetition combinators.
 //   Because there are multiple types of joining, repetition is not as simple as it is for a linear parser. However, repetition can be expressed as recursion and a join:

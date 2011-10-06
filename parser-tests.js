@@ -94,21 +94,47 @@ caterwaul.js_all()(function ($) {
   any3c([initial])[1].value()[1]     /-eq/ right    -se-
   any3c([initial])[1].value()[2]     /-eq/ right[1] -se-
 
-  op([initial]).length            /-eq/ 1    -se-
-  op([initial])[0].value()        /-eq/ tree -se-
-  num([initial]).length           /-eq/ 0    -se-
-  op_or_num([initial]).length     /-eq/ 1    -se-
-  op_or_num([initial])[0].value() /-eq/ tree
+  // Alternation combinators.
+//   This code checks the behavior of alt() and all().
+
+  (op /-bfs/ id)([initial]).length     /-eq/ 2     -se-
+  (op /-bfs/ id)([initial])[0].value() /-eq/ left  -se-
+  (op /-bfs/ id)([initial])[1].value() /-eq/ right -se-
+  (num /-bfs/ id)([initial]).length    /-eq/ 0     -se-
+  op_or_num([initial]).length          /-eq/ 2     -se-
+  op_or_num([initial])[0].value()      /-eq/ left  -se-
+  op_or_num([initial])[1].value()      /-eq/ right -se-
+
+  op_then_either([initial]).length     /-eq/ 2        -se-
+  op_then_either([initial])[0].value() /-eq/ right[0] -se-
+  op_then_either([initial])[1].value() /-eq/ right[1] -se-
+
+  op_then_maybe_either([initial]).length     /-eq/ 3        -se-
+  op_then_maybe_either([initial])[0].value() /-eq/ left     -se-
+  op_then_maybe_either([initial])[1].value() /-eq/ right[0] -se-
+  op_then_maybe_either([initial])[2].value() /-eq/ right[1] -se-
+
+  op_then_maybe_either_all([initial]).length     /-eq/ 4        -se-
+  op_then_maybe_either_all([initial])[0].value() /-eq/ left     -se-
+  op_then_maybe_either_all([initial])[1].value() /-eq/ right[0] -se-
+  op_then_maybe_either_all([initial])[2].value() /-eq/ right[1] -se-
+  op_then_maybe_either_all([initial])[3].value() /-eq/ right
 
   -where [tree = '3 + 4 * 5'.qs, left = tree[0], right = tree[1], initial = new array_state(tree),
           any(states) = states                              *~![x.next(1, x.input())] -seq, any = annotate(any, 'any', []),
           op(states)  = states %[/\W/.test(x.input().data)] *~![x.next(1, x.input())] -seq, op  = annotate(op,  'op',  []),
           num(states) = states %[/\d/.test(x.input().data)] *~![x.next(1, x.input())] -seq, num = annotate(num, 'num', []),
 
-          op_or_num = op /-alt/ num,
+          id = iv("_".qf),
 
-          any2  = any /-bfs/ iv("_".qf), any3  = any /any /-bfs/iv("_".qf),
-          any2c = any /-bfc/ iv("_".qf), any3c = any /any /-bfc/iv("_".qf)],
+          op_or_num = op /-alt/ num /-bfs/ id,
+
+          op_then_either           = op /-bfs/ op_or_num,
+          op_then_maybe_either     = op /-bfs/ (op_or_num /-alt/ id),
+          op_then_maybe_either_all = op /-bfs/ (op_or_num /-all/ id),
+
+          any2  = any /-bfs/ iv("_".qf), any3  = any /any /-bfs/id,
+          any2c = any /-bfc/ iv("_".qf), any3c = any /any /-bfc/id],
 
   using [caterwaul.parser],
 

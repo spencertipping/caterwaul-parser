@@ -2161,8 +2161,8 @@ directed structures.
 
   Put differently, alt() introduces a cut into the search, whereas all() does not.
 
-    alt(ps = parsers('alt', arguments), annotate(result, 'alt', ps))(states) = states *~!state[ps   |[x /-memo_single/ state -re [it.length && it]] |seq || []] -seq,
-    all(ps = parsers('all', arguments), annotate(result, 'all', ps))(states) = states *~!state[ps *~![x /-memo_single/ state]] -seq,
+    alt(ps = parsers('alt', arguments), annotate(result, 'alt', ps))(states) = states *~! state[ps   |p[p /-memo_single/ state -re [it.length && it]] |seq || []] -seq,
+    all(ps = parsers('all', arguments), annotate(result, 'all', ps))(states) = states *~!~state[ps *~!p[p /-memo_single/ state]] -seq,
 
   Repetition combinators.
   Because there are multiple types of joining, repetition is not as simple as it is for a linear parser. However, repetition can be expressed as recursion and a join:
@@ -2467,13 +2467,31 @@ These make sure that the various traversal combinators do what they're supposed 
   any3c([initial])[1].value()[1]     /-eq/ right    -se-
   any3c([initial])[1].value()[2]     /-eq/ right[1] -se-
 
+  Alternation combinators.
+  This code checks the behavior of alt() and all().
+
   (op /-bfs/ id)([initial]).length     /-eq/ 2     -se-
   (op /-bfs/ id)([initial])[0].value() /-eq/ left  -se-
   (op /-bfs/ id)([initial])[1].value() /-eq/ right -se-
   (num /-bfs/ id)([initial]).length    /-eq/ 0     -se-
   op_or_num([initial]).length          /-eq/ 2     -se-
   op_or_num([initial])[0].value()      /-eq/ left  -se-
-  op_or_num([initial])[1].value()      /-eq/ right
+  op_or_num([initial])[1].value()      /-eq/ right -se-
+
+  op_then_either([initial]).length     /-eq/ 2        -se-
+  op_then_either([initial])[0].value() /-eq/ right[0] -se-
+  op_then_either([initial])[1].value() /-eq/ right[1] -se-
+
+  op_then_maybe_either([initial]).length     /-eq/ 3        -se-
+  op_then_maybe_either([initial])[0].value() /-eq/ left     -se-
+  op_then_maybe_either([initial])[1].value() /-eq/ right[0] -se-
+  op_then_maybe_either([initial])[2].value() /-eq/ right[1] -se-
+
+  op_then_maybe_either_all([initial]).length     /-eq/ 4        -se-
+  op_then_maybe_either_all([initial])[0].value() /-eq/ left     -se-
+  op_then_maybe_either_all([initial])[1].value() /-eq/ right[0] -se-
+  op_then_maybe_either_all([initial])[2].value() /-eq/ right[1] -se-
+  op_then_maybe_either_all([initial])[3].value() /-eq/ right
 
   -where [tree = '3 + 4 * 5'.qs, left = tree[0], right = tree[1], initial = new array_state(tree),
           any(states) = states                              *~![x.next(1, x.input())] -seq, any = annotate(any, 'any', []),
@@ -2483,6 +2501,10 @@ These make sure that the various traversal combinators do what they're supposed 
           id = iv("_".qf),
 
           op_or_num = op /-alt/ num /-bfs/ id,
+
+          op_then_either           = op /-bfs/ op_or_num,
+          op_then_maybe_either     = op /-bfs/ (op_or_num /-alt/ id),
+          op_then_maybe_either_all = op /-bfs/ (op_or_num /-all/ id),
 
           any2  = any /-bfs/ iv("_".qf), any3  = any /any /-bfs/id,
           any2c = any /-bfc/ iv("_".qf), any3c = any /any /-bfc/id],
