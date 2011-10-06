@@ -92,11 +92,23 @@ caterwaul.js_all()(function ($) {
   any3c([initial])[1].value().length /-eq/ 3        -se-
   any3c([initial])[1].value()[0]     /-eq/ tree     -se-
   any3c([initial])[1].value()[1]     /-eq/ right    -se-
-  any3c([initial])[1].value()[2]     /-eq/ right[1] -where [tree = '3 + 4 * 5'.qs, left = tree[0], right = tree[1], initial = new array_state(tree),
-                                                            any(states) = states *~![x.next(1, x.input())] -seq, any = annotate(any, 'any', []),
+  any3c([initial])[1].value()[2]     /-eq/ right[1] -se-
 
-                                                            any2  = any /-bfs/ iv("_".qf), any3  = any /any /-bfs/iv("_".qf),
-                                                            any2c = any /-bfc/ iv("_".qf), any3c = any /any /-bfc/iv("_".qf)],
+  op([initial]).length            /-eq/ 1    -se-
+  op([initial])[0].value()        /-eq/ tree -se-
+  num([initial]).length           /-eq/ 0    -se-
+  op_or_num([initial]).length     /-eq/ 1    -se-
+  op_or_num([initial])[0].value() /-eq/ tree
+
+  -where [tree = '3 + 4 * 5'.qs, left = tree[0], right = tree[1], initial = new array_state(tree),
+          any(states) = states                              *~![x.next(1, x.input())] -seq, any = annotate(any, 'any', []),
+          op(states)  = states %[/\W/.test(x.input().data)] *~![x.next(1, x.input())] -seq, op  = annotate(op,  'op',  []),
+          num(states) = states %[/\d/.test(x.input().data)] *~![x.next(1, x.input())] -seq, num = annotate(num, 'num', []),
+
+          op_or_num = op /-alt/ num,
+
+          any2  = any /-bfs/ iv("_".qf), any3  = any /any /-bfs/iv("_".qf),
+          any2c = any /-bfc/ iv("_".qf), any3c = any /any /-bfc/iv("_".qf)],
 
   using [caterwaul.parser],
 
