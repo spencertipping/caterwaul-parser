@@ -268,7 +268,8 @@ caterwaul.js_all()(function ($) {
 
                                linear_string(s, annotate(result, 'linear_string', [s]))(states) = states *~![x.input().substr(x.position(), s.length) === s ? x.next(s.length, s) : []] -seq,
                                linear_regexp(r, annotate(result, 'linear_regexp', [r]))         = matcher
-                                                                                          -where [minimum_length   = $.regexp(r).minimum_length() || 1,
+                                                                                          -where [minimum_length   = $.regexp(r).minimum_length() ||
+                                                                                                                     raise [new Error("regexp must require at least one character: #{r}")],
                                                                                                   anchored         = r /!$.parser.anchor_regexp,
                                                                                                   matcher(states)  = states *~!match_one -seq,
                                                                                                   match_one(state) = new_states
