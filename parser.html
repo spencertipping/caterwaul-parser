@@ -1004,7 +1004,7 @@ __
 meta::function('reload', 'around_hook(\'reload\', sub {execute($_) for grep ! /^bootstrap::/, keys %data});');
 meta::function('render', <<'__');
 around_hook('render', @_, sub {
-  file::write("$_.js",     sdoc("pp::$_")) for modules();
+  file::write("$_.js",     sdoc("module::$_")) for modules();
   file::write('test.html', retrieve('pp::html::test'))});
 
 __
@@ -2320,7 +2320,7 @@ __
 meta::parent('caterwaul-extension.html', <<'__');
 function::module                                            b457af4710c9e757c4d26cd7ccea48b1
 function::modules                                           e3b6934465aed29eebaa08eef3be15fd
-function::render                                            750506b8c87b0794432d9ea5631848c1
+function::render                                            41e9d01f7b705950c999151c13224573
 function::repl                                              878e54fa550b881619f987a9d676038b
 function::test                                              af8715c7a61b18bfe7d0e2e72469dfea
 meta::type::module                                          4dd84ea154141e3559df4bb6612393c1
