@@ -69,8 +69,6 @@ caterwaul.js_all()(function ($) {
 // appropriately-defined termination conditions. This means that you could theoretically use these parser combinators to identify properties of continuous vector fields or other non-discrete
 // directed structures.
 
-  $.parser = capture [
-
   // Parser type annotation.
 //   This is useful for writing your own parsers or forward definitions. You need to annotate them in order for them to be usable with other combinators. So, for example, suppose we're parsing
 //   arithmetic expressions with parentheses and you need a forward definition for the recursive 'expression' rule. You'd need to annotate the shell function like this:
@@ -84,8 +82,8 @@ caterwaul.js_all()(function ($) {
   // Along the same line of thought is the 'parsers' function, which takes an array-like thing of parsers and type-checks each one. It automatically throws an error if any of them doesn't look
 //   like a parser.
 
-    annotate = annotate,
-    parsers  = parsers,
+  $.parser = capture [annotate = annotate,
+                      parsers  = parsers],
 
   // Traversal combinators.
 //   Linear parser combinator libraries generally implement a 'seq' or 'join' combinator that causes one parser to be activated and then followed by another one. Because there is only one path to
@@ -120,9 +118,11 @@ caterwaul.js_all()(function ($) {
 //   tricky given that we're potentially cloning them on every step. This logic is captured by step_matrix_mutable(), which optimizes linear cases. (step_matrix_immutable doesn't employ this
 //   optimization, which may be safer if you want to preserve intermediate matrices.)
 
+  $.parser /-$.merge/ wcapture [
+
     bfs(ps = parsers('bfs', arguments), annotate(result, 'bfs', ps))(states) = ps /[states][x /-memo/ x0] -seq,
-    bfc(ps = parsers('bfc', arguments), annotate(result, 'bfc', ps))(states) = ps /[states /!$.parser.state_matrix][step(x)(x0)] /seq /!$.parser.row_composite_states_from
-                                                                               -where [step = $.parser.step_matrix_mutable],
+    bfc(ps = parsers('bfc', arguments), annotate(result, 'bfc', ps))(states) = ps /[states /!state_matrix][step_matrix_mutable(x)(x0)] /seq /!row_composite_states_from,
+
     state_matrix(states)         = states *[[x]] -seq,
     step_matrix_mutable(p)(m)    = m *~!r[xs.length === 1 ? r.push(xs[0]) && [r] : xs *~[r + [x]] -seq, where [xs = p /-memo_single/ r[r.length - 1]]] -seq,
     step_matrix_immutable(p)(m)  = m *~!~r[memo_single(p, r[r.length - 1]) *~[r + [x]]] -seq,
@@ -154,12 +154,15 @@ caterwaul.js_all()(function ($) {
 //   means that some rows have fewer columns than others. In order to deal with this in a breadth-first way, we need to keep track of which states have terminated and stop iterating those while
 //   simultaneously flat-mapping others. I'm doing this by appending a null entry to terminated arrays. The iteration is done when all rows end with null.
 
-    manyc(p, annotate(result, 'manyc', [p]))(states)   = $.parser.state_matrix(states) /~!step /seq /!$.parser.row_null_states_from
-                                                         -where [iterate = $.parser.step_matrix_mutable_null(p), step(m) = $.parser.has_non_null_states(m) ? iterate(m) : null],
+  // Note that many() and manyc() have slightly different behavior: many() requires at least one match, whereas manyc() does not. To require at least one match, use manyc_one().
 
-    many(p, join, annotate(result, 'many', [p, join])) = f -where [j = join || $.parser.bfs, f(states) = f(states), f = p /-j/ annotate(f, 'recursive', []) /-$.parser.alt/ p],
+    manyc(p, annotate(result, 'manyc', [p]))(states)   = state_matrix(states) /~!step /seq /!row_null_states_from
+                                                         -where [iterate = step_matrix_mutable_null(p), step(m) = has_non_null_states(m) ? iterate(m) : null],
+    manyc_one(p)                                       = p /-bfc/ manyc(p) /-map/ "[_[0]] + _[1] -seq".qf,
 
-    optional(p, annotate(result, 'optional', [p]))     = p /-$.parser.alt/ $.parser.zero(),
+    many(p, join, annotate(result, 'many', [p, join])) = f -where [j = join || bfs, f(states) = f(states), f = p /-j/ annotate(f, 'recursive', []) /-alt/ p],
+
+    optional(p, annotate(result, 'optional', [p]))     = p /-alt/ zero(),
 
     step_matrix_immutable_null(p)(m) = m *~!r[xs ? xs.length ? xs *~[r + [x]] -seq : [r + [null] -seq] : [r], where [xs = r[r.length - 1] -re [it && p /-memo_single/ it]]] -seq,
     step_matrix_mutable_null(p)(m)   = m *~!r[xs ? l ? l === 1 ? r.push(xs[0]) && [r] : xs *~[r + [x]] -seq : r.push(null) && [r] : [r],
