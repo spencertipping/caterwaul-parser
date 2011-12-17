@@ -649,7 +649,7 @@ meta::configuration('dependencies', <<'__');
 
 caterwaul.js:     ../caterwaul/build/caterwaul.min.js
 caterwaul.std.js: ../caterwaul/build/caterwaul.std.min.js
-regexp.js:        ../caterwaul-regexp/regexp.js
+regexp.js:        ../caterwaul-regexp/regexp.min.js
 
 __
 meta::data('author', 'Spencer Tipping');
@@ -1009,6 +1009,11 @@ around_hook('render', @_, sub {
   file::write('test.html', retrieve('pp::html::test'))});
 
 __
+meta::function('render-min', <<'__');
+# Minifies rendered Javascript files.
+system("yuicompressor $_.js -o $_.min.js") for modules();
+
+__
 meta::function('repl', <<'__');
 around_hook('repl', sub {
   with_exported('pp::js::repl', sub {sh('node', @_)})});
@@ -1018,6 +1023,27 @@ meta::function('rm', <<'__');
 around_hook('rm', @_, sub {
   exists $data{$_} or terminal::warning("$_ does not exist") for @_;
   delete @data{@_}});
+__
+meta::function('rmparent', <<'__');
+# Removes one or more parents.
+my ($options, @parents) = separate_options(@_);
+my $clobber_divergent = $$options{'-D'} || $$options{'--clobber-divergent'};
+
+for my $parent (@parents) {
+  my $keep_parent_around = 0;
+
+  for my $line (split /\n/, retrieve("parent::$parent")) {
+    my ($name, $hash) = split /\s+/, $line;
+    next unless exists $data{$name};
+
+    my $local_hash = fast_hash(retrieve($name));
+    if ($clobber_divergent or $hash eq $local_hash or ! defined $hash) {rm($name)}
+    else {terminal::info("local attribute $name exists and is divergent; use rmparent -D $parent to delete it");
+          $keep_parent_around = 1}}
+
+  $keep_parent_around ? terminal::info("not deleting parent::$parent so that you can run", "rmparent -D $parent if you want to nuke divergent attributes too")
+                      : rm("parent::$parent")}
+
 __
 meta::function('save', 'around_hook(\'save\', sub {dangerous(\'\', sub {file::write($0, serialize()); $transient{initial} = state()}) if verify()});');
 meta::function('save-state', <<'__');
@@ -2160,7 +2186,8 @@ __
 meta::parent('/home/spencertipping/bin/caterwaul-extension.html', <<'__');
 function::module                                            cd75ead8fad4b21dd5e29bc85a2de334
 function::modules                                           e3b6934465aed29eebaa08eef3be15fd
-function::render                                            736771d0a0ec24a21510cad388370098
+function::render                                            41e9d01f7b705950c999151c13224573
+function::render-min                                        cb3f9c66145044d3f4c054db0911504b
 function::repl                                              878e54fa550b881619f987a9d676038b
 function::test                                              af8715c7a61b18bfe7d0e2e72469dfea
 meta::type::module                                          4dd84ea154141e3559df4bb6612393c1
@@ -2219,6 +2246,7 @@ function::perl                          a0f341ea54391b63b6195e7992b6a686
 function::rd                            eea4e1cdd9133abb985205ae5daf5f15
 function::reload                        1589f4cf8374e0011991cb8907afca3e
 function::rm                            6f6fd7a6c25558eb469d78ea888f8551
+function::rmparent                      49051d669554867f87c08656380a8aba
 function::save                          778c0e1043b9c6c96fb8f266f8061624
 function::save-state                    5af59ebc4ad8965767e4dc106d3b557e
 function::serialize                     a19ada2d2558ea9da3a7942fb913e15f
