@@ -127,7 +127,7 @@ optimization, which may be safer if you want to preserve intermediate matrices.)
 
       state_matrix(states)         = states *[[x]] -seq,
       step_matrix_mutable(p)(m)    = m *~!r[xs.length === 1 ? r.push(xs[0]) && [r] : xs *[r + [x] -seq] -seq, where [xs = p /-memo_single/ r[r.length - 1]]] -seq,
-      step_matrix_immutable(p)(m)  = m *~!~r[memo_single(p, r[r.length - 1]) *[r + [x] -seq]] -seq,
+      step_matrix_immutable(p)(m)  = m *~!r[memo_single(p, r[r.length - 1]) *[r + [x] -seq] -seq] -seq,
       row_composite_states_from(m) = m *r[r[r.length - 1].map("r.slice(1, r.length) *[x.value()] -seq".qf)] -seq,
 
 ## Choice combinators
@@ -138,8 +138,8 @@ when it's necessary to search an entire structure.
 
 Put differently, alt() introduces a cut into the search, whereas all() does not.
 
-      alt(ps = parsers('alt', arguments), annotate(result, 'alt', ps))(states) = states *~! state[ps   |p[p /-memo_single/ state -re [it.length && it]] |seq || []] -seq,
-      all(ps = parsers('all', arguments), annotate(result, 'all', ps))(states) = states *~!~state[ps *~!p[p /-memo_single/ state]] -seq,
+      alt(ps = parsers('alt', arguments), annotate(result, 'alt', ps))(states) = states *~!state[ps   |p[p /-memo_single/ state -re [it.length && it]] |seq || []] -seq,
+      all(ps = parsers('all', arguments), annotate(result, 'all', ps))(states) = states *~!state[ps *~!p[p /-memo_single/ state] -seq] -seq,
 
 ## Repetition combinators
 
@@ -208,7 +208,7 @@ without consuming any input. The idea is to mark the current location without ac
       iv(f,                annotate(result, 'iv',                [f]))(states) = states *[x.change({value: f(x.input(), x.position())})] -seq,
 
       map(p, f,            annotate(result, 'map',            [p, f]))(states) = p(states) *[x.map(f)] -seq,
-      flat_map(p, f,       annotate(result, 'flat_map',       [p, f]))(states) = p(states) *~!~[f(x.value()) *y[x.map(delay in y)]] -seq,
+      flat_map(p, f,       annotate(result, 'flat_map',       [p, f]))(states) = p(states) *~![f(x.value()) *y[x.map(delay in y)] -seq] -seq,
 
       map_state(p, f,      annotate(result, 'map_state',      [p, f]))(states) = p(states) *  [f(x)] -seq,
       flat_map_state(p, f, annotate(result, 'flat_map_state', [p, f]))(states) = p(states) *~![f(x)] -seq],
