@@ -1918,7 +1918,7 @@ This is where we tie the parsers to actual data types. Each data type driver sho
               ctor(i, p, v, memo_table) = arguments.length > 1 ? this -se [it.i = i, it.p = p,                it.v = v,             it.table = memo_table] :
                                                                  this -se [it.i = i, it.p = default_position, it.v = default_value, it.table = {}],
 
-              methods_for(step)         = capture [id()           = this.cached_id || (this.cached_id = id_function.call(this)),
+              methods_for(step)         = capture [id()           = this.cached_id -oeq- id_function.call(this),
                                                    input()        = this.i,  next(n, v)   = n === 1 ? step.call(this, this.p, v) : this.next(n - 1, v) *~![x.next(1, v)] -seq,
                                                    position()     = this.p,  map(f)       = new this.constructor(this.i, this.p, this.v /!f, this.table),
                                                    value()        = this.v,  memo_table() = this.table,
@@ -1930,7 +1930,7 @@ This is where we tie the parsers to actual data types. Each data type driver sho
   This is a probably-linear parser. I say probably because it's simple enough to implement a subclass of it that jumps around within the string. However, we don't assume that initially; for
   our purposes we just define a linear, forward string traversal pattern.
 
-    $.parser.linear_string_state = capture [step(p, v) = [this.change({position: p + 1, value: v})],
+    $.parser.linear_string_state = capture [step(p, v) = [this /~change/ {position: p + 1, value: v}],
                                             id()       = this.position(),
                                             defaults   = {position: 0}] /!$.parser.logical_state
 
@@ -1994,7 +1994,7 @@ This is where we tie the parsers to actual data types. Each data type driver sho
 
     ($.parser.proxy_state(s, value_function) = this -se [it.state = s, it.value_function = value_function]).prototype
 
-    /-$.merge/ capture [id()       = this.cached_id || (this.cached_id = ++memo_id),
+    /-$.merge/ capture [id()       = this.cached_id -oeq- ++memo_id,
                         input()    = this.value_function.call(this),  next(n, v)   = this.state.next(n, v),
                         position() = this.state.position(),           map(f)       = this.state.map(f),
                         value()    = this.state.value(),              memo_table() = this.state.memo_table()],
@@ -2009,7 +2009,7 @@ memoization partition.
   where [memoization_key       = $.gensym('memo'),
          memo_id               = 0,
 
-         memo_single(f, state) = value -where [f_key = f[memoization_key] || (f[memoization_key] = ++memo_id),
+         memo_single(f, state) = value -where [f_key = f[memoization_key] -oeq- ++memo_id,
                                                s_key = state.id(),
                                                table = state.memo_table(),
                                                key   = '@#{s_key}_#{f_key}',            // Prefix with @ to eliminate the possibility of collisions with other properties
