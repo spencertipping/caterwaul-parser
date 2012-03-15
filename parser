@@ -21,6 +21,8 @@ my %datatypes;
 
 my %locations;          # Maps eval-numbers to attribute names
 
+my $global_data = join '', <DATA>;
+
 sub meta::define_form {
   my ($namespace, $delegate) = @_;
   $datatypes{$namespace} = $delegate;
@@ -125,25 +127,6 @@ meta::meta('type::cache', <<'__');
 meta::configure 'cache', inherit => 0;
 meta::define_form 'cache', \&meta::bootstrap::implementation;
 __
-meta::meta('type::cached_dependency', <<'__');
-meta::configure 'cached_dependency', inherit => 0, extension => '';
-meta::define_form 'cached_dependency', \&meta::bootstrap::implementation;
-__
-meta::meta('type::configuration', <<'__');
-meta::functor::editable 'configuration', inherit => 0, extension => '.conf', default => sub {
-  # Any lines starting with #, with or without leading whitespace, are treated as comments.
-  # Comments are not parsed in option text; that is, you could specify an option that contained
-  # a # and the # and following text would be considered part of that option.
-  my ($data) = @_;
-  my @options = grep /:\h+/o && ! /^\h*#/o && ! /^\h*$/o, split(/\v+/o, $data);
-  s/^\h+//o for @options;
-  my @key_values = map split(/\h*:\h+/o, $_, 2), @options;
-  $key_values[$_ << 1] and $key_values[$_ << 1] =~ s/\s/_/go for 0 .. @key_values >> 1;
-  $key_values[$_ << 1] and $key_values[$_ << 1] = lc $key_values[$_ << 1] for 0 .. @key_values >> 1;
-  @key_values;
-};
-
-__
 meta::meta('type::data', 'meta::functor::editable \'data\', extension => \'\', inherit => 0, default => \'cat\';');
 meta::meta('type::function', <<'__');
 meta::configure 'function', extension => '.pl', inherit => 1;
@@ -221,10 +204,6 @@ meta::meta('type::meta', <<'__');
 
 meta::configure 'meta', extension => '.pl', inherit => 1;
 __
-meta::meta('type::module', <<'__');
-meta::functor::editable 'module', extension => '.js.sdoc', inherit => 1, default => 'edit';
-
-__
 meta::meta('type::parent', <<'__');
 meta::define_form 'parent', \&meta::bootstrap::implementation;
 meta::configure 'parent', extension => '', inherit => 1;
@@ -270,21 +249,12 @@ meta::define_form 'template', sub {
   meta::externalize "template::$name", "template::$name", meta::eval_in("sub {\n$value\n}", "template::$name");
 };
 __
-meta::alias('e', 'parser');
-meta::alias('ed', 'edit sdoc::js::dependencies');
-meta::alias('em', 'edit sdoc::js::modules');
-meta::alias('ept', <<'__');
-parser-tests
+meta::meta('type::waul', <<'__');
+meta::functor::editable 'waul', inherit => 1, extension => '.waul', default => 'edit';
 
 __
-meta::alias('er', <<'__');
-edit sdoc::js::repl -f
-
-__
-meta::alias('et', <<'__');
-edit sdoc::js::test -f
-
-__
+meta::alias('e', 'edit sdoc::waul::parser');
+meta::alias('erf', 'edit function::render');
 meta::bootstrap('html', <<'__');
 <html>
   <head>
@@ -324,6 +294,8 @@ my %externalized_functions;
 my %datatypes;
 
 my %locations;          # Maps eval-numbers to attribute names
+
+my $global_data = join '', <DATA>;
 
 sub meta::define_form {
   my ($namespace, $delegate) = @_;
@@ -369,36 +341,15 @@ run this script with the 'usage' argument.
 
 __
 meta::cache('parent-identification', <<'__');
-/home/spencertipping/bin/caterwaul-extension.html 5a8b9dacb335276b310735858942e66b
-/home/spencertipping/bin/configuration aa772900bb5b925cb84346bd72a4249d
 /home/spencertipping/bin/object 99aeabc9ec7fe80b1b39f5e53dc7e49e
-/home/spencertipping/bin/repository 05bc3036c343fdb8aec5b0be12a9b19e
+/home/spencertipping/bin/waul-object 4e04fdb8e560f4dd2ca4880b91a8e2ea
 /home/spencertipping/conjectures/perl-objects/js 246bc56c88e8e8daae3737dbb16a2a2c
 /home/spencertipping/conjectures/perl-objects/sdoc a1e8480e579614c01dabeecf0f963bcc
-caterwaul-extension.html 5a8b9dacb335276b310735858942e66b
-git-integration 9fabb9b6f2f374c35ddcc26549ac2b65
 object 99aeabc9ec7fe80b1b39f5e53dc7e49e
 preprocessor 70dae4b46eb4e06798ec6f38d17d4c7b
 __
-meta::cached_dependency('caterwaul.js', '(function(a){return a(a)})(function(f,z,p){var ag=function(ao){return ao.split(/\\s+/)},C=function(ao,ap){return ap&&ap.call(ao,ao)||ao},o=function(ao){throw new Error(ao)},c=z||(function(){for(var ao=[],aq="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789$_",ap=21,ar;ap>=0;--ap){ao.push(aq.charAt(Math.random()*64>>>0))}return ao.join("")})(),X=(function(ao){return function(ap){return[ap||"",(++ao).toString(36),c].join("_")}})(0),W=function(ao){return ao.substr(ao.length-22)===c},i=function(ap,ao){return function(){return ap.apply(ao,arguments)}},O=function(at,ap){for(var aq=0,ar=[],ao=ap.length;aq<ao;++aq){ar.push(at(ap[aq],aq))}return ar},w=function(ap,ao){return O(function(aq){return aq instanceof Array?w(ap,aq):ap(aq)})},ae=function(ar){for(var aq=0,ap=ag(ar),at={},ao=ap.length;aq<ao;++aq){at[ap[aq]]=true}return s(at)},ac=(function(ap){for(var ao in ap){if(ap.hasOwnProperty(ao)){return true}}})({toString:true})?function(at){for(var ar=1,ao=arguments.length,aq;ar<ao;++ar){if(aq=arguments[ar]){for(var ap in aq){if(g(aq,ap)){at[ap]=aq[ap]}}}}return at}:function(at){for(var ar=1,ao=arguments.length,aq;ar<ao;++ar){if(aq=arguments[ar]){for(var ap in aq){if(g(aq,ap)){at[ap]=aq[ap]}}if(aq.toString&&!/\\[native code\\]/.test(aq.toString.toString())){at.toString=aq.toString}}}return at},ab=X("hash"),s=function(aq){var ao=0;for(var ap in aq){l.call(aq,ap)&&(ao=ap.length>ao?ap.length:ao)}aq[ab]=ao;return aq},g=function(ap,ao){return ao!=null&&!(ao.length>ap[ab])&&l.call(ap,ao)},l=Object.prototype.hasOwnProperty,af=function(){var ao=function(){return ao.init.apply(ao,arguments)};return ao},ah=typeof caterwaul==="undefined"?p:caterwaul,an=C(af(),function(){this.deglobalize=function(){caterwaul=ah;return an};ac(this,{merge:ac,map:O,rmap:w,gensym:X,is_gensym:W})}),am=ae(". new ++ -- u++ u-- u+ u- typeof u~ u! ! * / % + - << >> >>> < > <= >= instanceof in == != === !== & ^ | && || ? = += -= *= /= %= &= |= ^= <<= >>= >>>= : , return throw case var const break continue void else u; ;"),T=function(ar){for(var aq=0,ap=[false];aq<8;++aq){ap.push.apply(ap,ap)}for(var aq=0,ao=ar.length;aq<ao;++aq){ap[ar.charCodeAt(aq)]=true}return ap},ak=T(".0123456789"),V=T("0123456789"),y=T("0123456789abcdefABCDEFx"),L=T("eE"),j=T(" \\n\\r\\t"),t=T("()[]{}?:"),r=T("([{?:"),x=T("+-*/%&|^!~=<>?:;.,"),J=T("\\n\\r"),k=T("gims"),P=T("\'\\"/"),n="/".charCodeAt(0),S="*".charCodeAt(0),m="\\\\".charCodeAt(0),aa="x".charCodeAt(0),N=".".charCodeAt(0),U="0".charCodeAt(0),aj=ae("++ --"),Y=T("$_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"),K=O(ae,["function","( [ . [] ()","new delete","u++ u-- ++ -- typeof u~ u! u+ u-","* / %","+ -","<< >> >>>","< > <= >= instanceof in","== != === !==","&","^","|","&&","||","case","? = += -= *= /= %= &= |= ^= <<= >>= >>>=",":",",","return throw break continue void","var const","if else try catch finally for switch with while do",";"]),H=ae("= += -= *= /= %= &= ^= |= <<= >>= >>>= ~ ! new typeof u+ u- -- ++ u-- u++ ? if else function try catch finally for switch case with while do"),F=(function(aq){for(var at={},ar=0,ao=aq.length;ar<ao;++ar){for(var ap in aq[ar]){g(aq[ar],ap)&&(at[ap]=ar)}}return s(at)})(K),v=(function(aq){for(var at=[],au=0,ao=aq.length,ar=null;ar=aq[au],at[au]=true,au<ao;++au){for(var ap in ar){if(g(ar,ap)&&(at[au]=at[au]&&!g(H,ap))){break}}}return at})(K),B=ae("[] . () * / % + - << >> >>> < > <= >= instanceof in == != === !== & ^ | && || = += -= *= /= %= &= |= ^= <<= >>= >>>= , : ;"),Z=s({"function":2,"if":1,"do":1,"catch":1,"try":1,"for":1,"while":1,"with":1,"switch":1}),R=s({"if":"else","do":"while","catch":"finally","try":"catch"}),D=ae("[] ()"),ai=ae("return throw break continue else"),E=ae("u+ u- u! u~ u++ u-- new typeof finally case var const void delete"),h=ae("; {"),ad=ae("i;"),I=ae("++ --"),q=s({"(":")","[":"]","{":"}","?":":"}),G=ae("[ ("),Q=ae("?"),e=ae("function if for while catch void delete new typeof in instanceof"),A=ae("function"),u=an.syntax_common={_replace:function(ao){return(ao.l=this.l)&&(this.l.r=ao),(ao.r=this.r)&&(this.r.l=ao),this},_append_to:function(ao){return ao&&ao._append(this),this},_reparent:function(ao){return this.p&&this.p[0]===this&&(this.p[0]=ao),this},_fold_l:function(ao){return this._append(this.l&&this.l._unlink(this)||a)},_append:function(ao){return(this[this.length++]=ao)&&(ao.p=this),this},_fold_r:function(ao){return this._append(this.r&&this.r._unlink(this)||a)},_sibling:function(ao){return ao.p=this.p,(this.r=ao).l=this},_fold_lr:function(){return this._fold_l()._fold_r()},_fold_rr:function(){return this._fold_r()._fold_r()},_wrap:function(ao){return ao.p=this._replace(ao).p,this._reparent(ao),delete this.l,delete this.r,this._append_to(ao)},_unlink:function(ao){return this.l&&(this.l.r=this.r),this.r&&(this.r.l=this.l),delete this.l,delete this.r,this._reparent(ao)},pop:function(){return --this.length,this},push:function(ao){return this[this.length++]=ao||a,this},id:function(){var ao=X("id");return(this.id=function(){return ao})()},is_caterwaul_syntax:true,each:function(aq){for(var ap=0,ao=this.length;ap<ao;++ap){aq(this[ap],ap)}return this},map:function(aq){for(var ar=new this.constructor(this),ap=0,ao=this.length;ap<ao;++ap){ar.push(aq(this[ap],ap)||this[ap])}return ar},reach:function(ao){ao(this);this.each(function(ap){ap.reach(ao)});return this},rmap:function(ap){var ao=ap(this);return !ao||ao===this?this.map(function(aq){return aq.rmap(ap)}):ao===true?this:ao.rmap===p?new this.constructor(ao):ao},peach:function(ao){this.each(function(ap){ap.peach(ao)});ao(this);return this},pmap:function(ap){var ao=this.map(function(aq){return aq.pmap(ap)});return ap(ao)},clone:function(){return this.rmap(function(){return false})},collect:function(ap){var ao=[];this.reach(function(aq){ap(aq)&&ao.push(aq)});return ao},replace:function(ao){var ap;return l.call(ao,this.data)&&(ap=ao[this.data])?ap.constructor===String?C(this.map(function(aq){return aq.replace(ao)}),function(){this.data=ap}):ap:this.map(function(aq){return aq.replace(ao)})},repopulated_with:function(ao){return new this.constructor(this.data,ao)},with_data:function(ao){return new this.constructor(ao,Array.prototype.slice.call(this))},change:function(ap,ao){return C(new this.constructor(this.data,Array.prototype.slice.call(this)),function(aq){aq[ap]=ao})},compose_single:function(ao,ap){return this.change(ao,ap(this[ao]))},slice:function(ap,ao){return new this.constructor(this.data,Array.prototype.slice.call(this,ap,ao))},traverse:function(ao){ao({entering:this});ao({exiting:this.each(function(ap){ap.traverse(ao)})});return this},flatten:function(ao){ao=ao||this.data;return ao!==this.data?this.as(ao):!(g(B,ao)&&this.length)?this:g(H,ao)?C(new this.constructor(ao),i(function(aq){for(var ap=this;ap&&ap.data===ao;ap=ap[1]){aq.push(ap[0])}aq.push(ap)},this)):C(new this.constructor(ao),i(function(ar){for(var ap=this,aq=[];ap.data===ao;ap=ap[0]){ap[1]&&aq.push(ap[1])}aq.push(ap);for(ap=aq.length-1;ap>=0;--ap){ar.push(aq[ap])}},this))},unflatten:function(){var ap=this,ao=g(H,this.data);return this.length<=2?this:C(new this.constructor(this.data),function(at){if(ao){for(var ar=0,aq=ap.length-1;ar<aq;++ar){at=at.push(ap[ar]).push(ar<aq-2?new ap.constructor(ap.data):ap[ar])[1]}}else{for(var ar=ap.length-1;ar>=1;--ar){at=at.push(ar>1?new ap.constructor(ap.data):ap[0]).push(ap[ar])[0]}}})},as:function(ao){return this.data===ao?this:new this.constructor(ao).push(this)},bindings:function(ap){var ao=ap||{};this.reach(function(aq){if(aq.binds_a_value){ao[aq.data]=aq.value}});return ao},contains:function(ar){var ao=ar(this);if(ao){return ao}for(var aq=0,ap=this.length;aq<ap;++aq){if(ao=this[aq].contains(ar)){return ao}}},match:function(aq,ar){aq=aq.constructor===String?an.parse(aq):aq;ar||(ar={_:aq});if(this.is_wildcard()){return ar[this.data]=aq,ar}else{if(this.length===aq.length&&this.data===aq.data){for(var ap=0,ao=this.length;ap<ao;++ap){if(!this[ap].match(aq[ap],ar)){return null}}return ar}}},toString:function(){var ao=[""];this.serialize(ao);return ao.join("")},structure:function(){if(this.length){return"("+[\'"\'+this.data+\'"\'].concat(O(function(ao){return ao.structure()},this)).join(" ")+")"}else{return this.data}}};an.syntax_subclass=function(aq){var ap=Array.prototype.slice.call(arguments,1),ao=function(){return aq.apply(this,arguments)};ac.apply(this,[ao.prototype,u].concat(ap));ao.prototype.constructor=ao;return ao};var b=an.parse_hex=function(ar){for(var ao=0,aq=0,ap=ar.length,at;aq<ap;++aq){ao*=16,ao+=(at=ar.charCodeAt(aq))<=58?at-48:(at&95)-55}return ao},al=an.parse_octal=function(ar){for(var ao=0,aq=0,ap=ar.length;aq<ap;++aq){ao*=8,ao+=ar.charCodeAt(aq)-48}return ao},d=an.unescape_string=function(at){for(var ar=0,au,ap=at.length,ao=[],aq=false;ar<ap;++ar){if(aq){aq=false,ao.push((au=at.charAt(ar))==="\\\\"?"\\\\":au==="n"?"\\n":au==="r"?"\\r":au==="b"?"\\b":au==="f"?"\\f":au==="0"?"\\u0000":au==="t"?"\\t":au==="v"?"\\v":au===\'"\'||au==="\'"?au:au==="x"?String.fromCharCode(b(at.substring(ar,++ar+1))):au==="u"?String.fromCharCode(b(at.substring(ar,(ar+=3)+1))):String.fromCharCode(al(at.substring(ar,(ar+=2)+1))))}else{if((au=at.charAt(ar))==="\\\\"){aq=true}else{ao.push(au)}}}return ao.join("")};an.javascript_tree_type_methods={is_string:function(){return/[\'"]/.test(this.data.charAt(0))},as_escaped_string:function(){return this.data.substr(1,this.data.length-2)},is_number:function(){return/^-?(0x|\\d|\\.\\d+)/.test(this.data)},as_number:function(){return Number(this.data)},is_boolean:function(){return this.data==="true"||this.data==="false"},as_boolean:function(){return this.data==="true"},is_regexp:function(){return/^\\/./.test(this.data)},as_escaped_regexp:function(){return this.data.substring(1,this.data.lastIndexOf("/"))},is_array:function(){return this.data==="["},as_unescaped_string:function(){return d(this.as_escaped_string())},is_wildcard:function(){return this.data.charCodeAt(0)===95},is_identifier:function(){return this.length===0&&/^[A-Za-z_$]\\w*$/.test(this.data)&&!this.is_boolean()&&!this.is_null_or_undefined()&&!g(am,this.data)},has_grouped_block:function(){return g(Z,this.data)},is_block:function(){return g(h,this.data)},is_blockless_keyword:function(){return g(ai,this.data)},is_null_or_undefined:function(){return this.data==="null"||this.data==="undefined"},is_constant:function(){return this.is_number()||this.is_string()||this.is_boolean()||this.is_regexp()||this.is_null_or_undefined()},left_is_lvalue:function(){return/=$/.test(this.data)||/\\+\\+$/.test(this.data)||/--$/.test(this.data)},is_empty:function(){return !this.length},has_parameter_list:function(){return this.data==="function"||this.data==="catch"},has_lvalue_list:function(){return this.data==="var"||this.data==="const"},is_dereference:function(){return this.data==="."||this.data==="[]"},is_invocation:function(){return this.data==="()"},is_contextualized_invocation:function(){return this.is_invocation()&&this[0].is_dereference()},is_invisible:function(){return g(ad,this.data)},is_binary_operator:function(){return g(B,this.data)},is_prefix_unary_operator:function(){return g(E,this.data)},is_postfix_unary_operator:function(){return g(I,this.data)},is_unary_operator:function(){return this.is_prefix_unary_operator()||this.is_postfix_unary_operator()},accepts:function(ao){return g(R,this.data)&&R[this.data]===(ao.data||ao)}};an.javascript_tree_serialization_methods={ends_with_block:function(){var ao=this[Z[this.data]];return this.data==="{"||g(Z,this.data)&&(this.data!=="function"||this.length===3)&&ao&&ao.ends_with_block()},serialize:function(ar){var ap=this.length,at=this.data,ao=";\\n",aq=function(au){if(Y[ar[ar.length-1].charCodeAt(0)]===Y[au.charCodeAt(0)]){ar.push(" ",au)}else{ar.push(au)}};switch(ap){case 0:if(g(ai,at)){return aq(at.replace(/^u/,""))}else{if(g(q,at)){return aq(at),aq(q[at])}else{return aq(at)}}case 1:if(g(E,at)||g(ai,at)){return aq(at.replace(/^u/,"")),this[0].serialize(ar)}else{if(g(q,at)){return aq(at),this[0].serialize(ar),aq(q[at])}else{if(g(B,at)){return aq("/* unary "+at+" node */"),this[0].serialize(ar)}else{return this[0].serialize(ar),aq(at)}}}case 2:if(g(D,at)){return this[0].serialize(ar),aq(at.charAt(0)),this[1].serialize(ar),aq(at.charAt(1))}else{if(g(Z,at)){return aq(at),this[0].serialize(ar),this[1].serialize(ar)}else{if(g(ad,at)){return this[0].serialize(ar),this[1].serialize(ar)}else{if(at===";"){return this[0].serialize(ar),aq(ao),this[1].serialize(ar)}else{return this[0].serialize(ar),aq(at),this[1].serialize(ar)}}}}default:if(g(Q,at)){return this[0].serialize(ar),aq(at),this[1].serialize(ar),aq(":"),this[2].serialize(ar)}else{if(g(Z,at)){return this.accepts(this[2])&&!this[1].ends_with_block()?(aq(at),this[0].serialize(ar),this[1].serialize(ar),aq(ao),this[2].serialize(ar)):(aq(at),this[0].serialize(ar),this[1].serialize(ar),this[2].serialize(ar))}else{return this.unflatten().serialize(ar)}}}}};an.ref=an.syntax_subclass(function(ap,ao){if(ap instanceof this.constructor){this.value=ap.value,this.data=ap.data}else{this.value=ap,this.data=X(ao&&ao.constructor===String?ao:"ref")}},an.javascript_tree_type_methods,an.javascript_tree_serialization_methods,{binds_a_value:true,length:0},{replace:function(ao){var ap;return l.call(ao,this.data)&&(ap=ao[this.data])?ap.constructor===String?C(new this.constructor(this.value),function(){this.data=ap}):ap:this}});an.syntax=an.syntax_subclass(function(au){if(au instanceof this.constructor){this.data=au.data,this.length=0}else{this.data=au&&au.toString();this.length=0;for(var ar=1,ao=arguments.length,aq;aq=arguments[ar],ar<ao;++ar){for(var ap=0,aw=aq.length,at,av;aq instanceof Array?(at=aq[ap],ap<aw):(at=aq,!ap);++ap){this._append((av=at.constructor)===String||av===Number||av===Boolean?new this.constructor(at):at)}}}},an.javascript_tree_type_methods,an.javascript_tree_serialization_methods);var a=an.empty=new an.syntax("");an.parse=function(ao){if(ao.constructor===an.syntax){return ao}var aK=ao.toString(),au=0,aW=0,aH=true,aG=false,aY=false,aX=false,aL=0,aI="",aT=0,aQ=aK.length,aB=function(a0){return aK.charCodeAt(a0)},az=[],aP=null,ax=null,av=null,ap=O(function(){return[]},K),aw=[],aJ=[a],aR=function(a0){return aJ.push(a0),a0},aM=function(a0){return ax?ax._sibling(ax=a0):(ax=a0._append_to(av)),aR(a0)},aq=this.syntax,ay=[];if(aQ===0){return a}while((au=aT)<aQ){while(j[aW=aB(aT)]&&aT<aQ){au=++aT}aG=aX=aY=aI=false;if(t[aW]){aI=!!++aT;aH=r[aW]}else{if(aW===n&&aB(aT+1)===S&&(aT+=2)){while(++aT<aQ&&aB(aT)!==n||aB(aT-1)!==S){}aI=!++aT}else{if(aW===n&&aB(aT+1)===n){while(++aT<aQ&&!J[aB(aT)]){}aI=false}else{if(P[aW]&&(aL=aW)&&aH&&!(aH=!(aI=aK.charAt(aT)))){while(++aT<aQ&&(aW=aB(aT))!==aL||aG){aG=!aG&&aW===m}while(++aT<aQ&&k[aB(aT)]){}aI=true}else{if(aW===U&&y[aB(aT+1)]){while(++aT<aQ&&y[aB(aT)]){}aH=!(aI=true)}else{if(ak[aW]&&(aW!==N||V[aB(aT+1)])){while(++aT<aQ&&(V[aW=aB(aT)]||(aY^(aY|=aW===N))||(aX^(aX|=L[aW]&&++aT)))){}while(aT<aQ&&V[aB(aT)]){++aT}aH=!(aI=true)}else{if(x[aW]&&(aI=aH?"u":"",aH=true)){while(aT<aQ&&x[aB(aT)]&&g(am,aI+aK.charAt(aT))){aI+=aK.charAt(aT++)}aH=!g(aj,aI)}else{while(++aT<aQ&&(Y[aW=aB(aT)]||aW>127)){}aH=g(am,aI=aK.substring(au,aT))}}}}}}}if(aT===au){throw new Error(\'Caterwaul lex error at "\'+aK.substr(au,40)+\'" with leading context "\'+aK.substr(au-40,40)+\'" (probably a Caterwaul bug)\')}if(aI===false){continue}aI=aI===true?aK.substring(au,aT):aI==="u;"?";":aI;aI===aP?(az.pop(),aP=az[az.length-1],ax=ax?ax.p:av,av=null):(g(q,aI)?(az.push(aP=q[aI]),av=aM(aR(new aq(aI))),ax=null):aM(aR(new aq(aI))),g(F,aI)&&ap[F[aI]].push(ax||av));aH|=aI===")"&&ax.l&&g(Z,ax.l.data)}for(var aT=0,aQ=ap.length,aF,aZ;aZ=ap[aT],aF=v[aT],aT<aQ;++aT){for(var aS=aF?0:aZ.length-1,aE=aZ.length,aU=aF?1:-1,aC,aV,aD;aF?aS<aE:aS>=0;aS+=aU){if(g(B,aV=(aC=aZ[aS]).data)){aC._fold_lr()}else{if(g(G,aV)&&aC.l&&!((aD=aC.l.l)&&g(Z,aD.data))&&(aC.l.data==="."||(aC.l.data==="function"&&aC.l.length===2)||!(g(am,aC.l.data)||g(e,aC.l.data)))){aw.push(aC.l._wrap(aR(new aq(aV+q[aV]))).p._fold_r())}else{if(g(I,aV)){aC._fold_l()}else{if(g(E,aV)){aC._fold_r()}else{if(g(Q,aV)){aC._fold_lr(),ay.push(aC)}else{if(g(Z,aV)&&aC.r&&aC.r.data!==":"){for(var aN=0,aA=Z[aV];aN<aA&&aC.r&&!g(h,aC.r.data);++aN){aC._fold_r()}aC.r&&(aC.r.data===";"?aC.push(a):aC._fold_r());if(g(R,aV)&&R[aV]===(aC.r&&aC.r.r&&aC.r.r.data)){aC._fold_r().pop()._fold_r()}else{if(g(R,aV)&&R[aV]===(aC.r&&aC.r.data)){aC._fold_r()}}}else{if(g(ai,aV)){aC.r&&aC.r.data!==";"&&aC._fold_r()}}}}}}}}}for(var aT=aJ.length-1,aZ;aT>=0;--aT){(aZ=aJ[aT]).r&&aZ._wrap(aR(new aq("i;"))).p._fold_r()}for(var aT=0,aQ=aw.length,aZ,ar;aT<aQ;++aT){(ar=(aZ=aw[aT])[1]=aZ[1][0]||a)&&(ar.p=aZ)}for(var aT=0,aQ=ay.length,aZ,aO,at;aT<aQ;++aT){aO=(aZ=ay[aT]).length,at=aZ[0],aZ[0]=aZ[aO-2],aZ[1]=at,aZ[2]=aZ[aO-1],aZ.length=3}while(ax.p){ax=ax.p}for(var aT=aJ.length-1,aZ;aT>=0;--aT){delete (aZ=aJ[aT]).p,delete aZ.l,delete aZ.r}return ax};(function(){var ao=an.parse("var _bindings; return(_expression)"),aq=an.parse("_variable = _base._variable"),ap=an.parse("undefined = void(0)");an.compile=function(aD,ax,aC){aC=ac({gensym_renaming:true},aC);var au=ac({},this._environment||{},ax||{},aD.bindings()),az=[ap],aB=X("base");for(var aw in au){if(l.call(au,aw)&&aw!=="this"){az.push(aq.replace({_variable:aw,_base:aB}))}}var aA=new this.syntax(",",az).unflatten(),ar=ao.replace({_bindings:aA,_expression:aD});if(aC.gensym_renaming){var av=this.gensym_rename_table(ar);for(var aw in au){l.call(au,aw)&&(au[av[aw]||aw]=au[aw])}ar=ar.replace(av);aB=av[aB]}var at=ar.toString();try{return(new Function(aB,at)).call(au["this"],au)}catch(ay){throw new Error((ay.message||ay)+" while compiling "+at)}};an.gensym_rename_table=function(aA){var az={},ax=[];aA.reach(function(aB){var aC=aB.data;if(W(aC)){az[aC]||ax.push(aC)}az[aC]=aC.replace(/^(.*)_[a-z0-9]+_.{22}$/,"$1")||"anon"});var ar={},ay=function(aB){if(!(aB in az)){return aB}var aC=ar[aB]||0;while(az[aB+(++aC).toString(36)]){}return aB+(ar[aB]=aC).toString(36)};for(var at={},av=0,au=ax.length,aw;av<au;++av){at[aw=ax[av]]||(az[at[aw]=ay(az[aw])]=true)}return at}})();var M=function(ap){for(var aq=ap.split(/\\s+/),ar=1,ao=aq.length,at=an[aq[0]]();ar<ao;++ar){at=an[aq[ar]](at)}return at};an.init=function(ap){ap||(ap=function(aq){return true});ap.constructor===Function||(ap=M(ap));var ao=function(at,aq,ar){return at.constructor===Function||at.constructor===String?an.compile(ao.call(ao,an.parse(at)),aq,ar):at.rmap(function(au){return ap.call(ao,au,aq,ar)})};ao.global=an;ao.macroexpander=ap;return ao};an.initializer=f;an.clone=function(){return C(f(f,c).deglobalize(),function(){for(var ao in an){this[ao]||(this[ao]=an[ao])}})};return caterwaul=an});');
-meta::cached_dependency('caterwaul.std.js', '(caterwaul.std_initializer=function(){(function($){var syntax_manipulator=function(base_case){var result=function(x){if(x.constructor===Array){for(var i=0,l=x.length,ys=[];i<l;++i){ys.push(result(x[i]))}return function(tree){for(var i=ys.length-1,r;i>=0;--i){if(r=ys[i].call(this,tree)){return r}}}}else{return x.constructor===String?result($.parse(x)):x.constructor===$.syntax?base_case.call(this,x):x}};return result};$.pattern=syntax_manipulator(function(pattern){return function(tree){return pattern.match(tree)}});$.expander=syntax_manipulator(function(expander){return function(match){return expander.replace(match)}});$.alternatives=syntax_manipulator(function(alternative){throw new Error("must use replacer functions with caterwaul.alternatives()")});$.reexpander=function(expander){var e=$.expander(expander);return function(match){var r=e.call(this,match);return r&&this(r)}};var composer=function(expander_base_case){return function(pattern,expander){var new_pattern=$.pattern(pattern),new_expander=expander_base_case(expander);return function(tree){var match=new_pattern.call(this,tree);return match&&new_expander.call(this,match)}}};$.replacer=composer($.expander);$.rereplacer=composer($.reexpander);$.macroexpand=function(tree){return $($.alternatives(Array.prototype.slice.call(arguments,1)))(tree)}})(caterwaul);(function($){$.anonymizer=function(){for(var translation_table={},i=0,l=arguments.length;i<l;++i){translation_table[arguments[i]]=$.gensym(arguments[i])}return function(node){return $.parse(node).replace(translation_table)}}})(caterwaul);(function($){$.js=function(macroexpander){var string_interpolator=function(node){var s=node.data,q=s.charAt(0),syntax=$.syntax;if(q!=="\'"&&q!==\'"\'||!/#\\{[^\\}]+\\}/.test(s)){return false}for(var pieces=[],is_code=[],i=1,l=s.length-1,brace_depth=0,got_hash=false,start=1,c;i<l;++i){if(brace_depth){if((c=s.charAt(i))==="}"){--brace_depth||(pieces.push(s.substring(start,i)),is_code.push(true))&&(start=i+1),got_hash=false}else{brace_depth+=c==="{"}}else{if((c=s.charAt(i))==="#"){got_hash=true}else{if(c==="{"&&got_hash){pieces.push(s.substring(start,i-1)),is_code.push(false),start=i+1,++brace_depth}else{got_hash=false}}}}pieces.push(s.substring(start,l)),is_code.push(false);for(var quoted=new RegExp("\\\\\\\\"+q,"g"),i=0,l=pieces.length;i<l;++i){pieces[i]=is_code[i]?this($.parse(pieces[i].replace(quoted,q)).as("(")):new syntax(q+pieces[i]+q)}return new syntax("+",pieces).unflatten().as("(")};var function_local_template=$.parse("var _x = _y"),function_bind_pattern=$.parse("_x = _y"),function_result_pattern=$.parse("result"),function_with_afters=$.parse("function (_formals) {_befores; var result = _result; _afters; return result}"),function_without_afters=$.parse("function (_formals) {_befores; return _result}"),function_assignment_template=$.parse("_f = _x"),function_is_result=function(n){return n.is_empty()&&n.data==="result"},function_destructure=$.rereplacer("_f(_xs) = _y",function(match){for(var formals=[],befores=[],afters=[],ps=match._xs.flatten(","),i=0,l=ps.length;i<l;++i){(afters.length||ps[i].contains(function_is_result)?afters:befores.length||ps[i].length?befores:formals).push(ps[i])}for(var contains_locals=[befores,afters],i=0,l=contains_locals.length;i<l;++i){for(var xs=contains_locals[i],j=0,lj=xs.length,m;j<lj;++j){xs[j]=(m=function_bind_pattern.match(xs[j]))&&m._x.is_empty()?function_local_template.replace(m):xs[j].as("(")}}var new_formals=formals.length?new $.syntax(",",formals).unflatten():$.empty,new_befores=befores.length?new $.syntax(";",befores).unflatten():$.empty,new_afters=afters.length?new $.syntax(";",afters).unflatten():$.empty;template=function_assignment_template.replace({_f:match._f,_x:afters.length?function_with_afters:function_without_afters});return template.replace({_formals:new_formals,_befores:new_befores,_afters:new_afters,_result:match._y})});var infix_function=function(node){var d=node.data,left,fn;if((d==="/"||d==="|")&&(left=node[0]).data===d&&left[1]&&left[1].data==="u-"&&(fn=left[1][0])){return new $.syntax("()",fn,this(node[0][0]).flatten(d).push(this(node[1])).with_data(",").unflatten())}};var infix_method=function(node){var d=node.data,left,fn;if((d==="/"||d==="|")&&(left=node[0]).data===d&&left[1]&&left[1].data==="u~"&&(fn=left[1][0])){var xs=[].slice.call(this(node[0][0]).flatten(d)),object=xs.shift();return new $.syntax("()",new $.syntax(".",new $.syntax("(",object),fn),new $.syntax(",",xs,this(node[1])).unflatten())}};var postfix_function_template=$.parse("_f(_x)"),postfix_function=$.rereplacer("_x /!_f",function(match){return postfix_function_template.replace({_f:match._f,_x:this(match._x).flatten("/").with_data(",").unflatten()})});var modified_literal_form=$.pattern("_literal._modifier"),lookup_literal_modifier=function(caterwaul,type,modifier){var hash=caterwaul.literal_modifiers[type];return hash.hasOwnProperty(modifier)&&hash[modifier]},literal_modifier=function(node){var modified_literal=modified_literal_form.call(this,node),literal,expander;if(modified_literal&&(literal=modified_literal._literal)&&(expander=literal.is_identifier()?lookup_literal_modifier(this,"identifier",modified_literal._modifier.data):literal.is_array()?lookup_literal_modifier(this,"array",modified_literal._modifier.data):literal.is_regexp()?lookup_literal_modifier(this,"regexp",modified_literal._modifier.data):literal.is_number()?lookup_literal_modifier(this,"number",modified_literal._modifier.data):literal.is_string()?lookup_literal_modifier(this,"string",modified_literal._modifier.data):null)){return expander.call(this,literal)}};var bracket_modifier_form=$.pattern("_modifier[_expression]"),slash_modifier_form=$.pattern("_expression /_modifier"),minus_modifier_form=$.pattern("_expression -_modifier"),in_modifier_form=$.pattern("_modifier in _expression"),pipe_modifier_form=$.pattern("_expression |_modifier"),comma_modifier_form=$.pattern("_expression, _modifier"),dot_parameters=$.pattern("_modifier._parameters"),bracket_parameters=$.pattern("_modifier[_parameters]"),parameterized_wickets=$.pattern("_expression <_modifier> _parameters"),parameterized_minus=$.pattern("_expression -_modifier- _parameters"),modifier=function(node){var modifier,parameterized_match=parameterized_wickets.call(this,node)||parameterized_minus.call(this,node);if(parameterized_match&&this.parameterized_modifiers.hasOwnProperty(modifier=parameterized_match._modifier.data)){var r=this.parameterized_modifiers[modifier].call(this,parameterized_match);if(r){return r}}var regular_match=bracket_modifier_form.call(this,node)||slash_modifier_form.call(this,node)||minus_modifier_form.call(this,node)||in_modifier_form.call(this,node)||pipe_modifier_form.call(this,node)||comma_modifier_form.call(this,node);if(regular_match){var parameter_match=dot_parameters.call(this,regular_match._modifier)||bracket_parameters.call(this,regular_match._modifier);if(parameter_match){regular_match._modifier=parameter_match._modifier;regular_match._parameters=parameter_match._parameters;return this.parameterized_modifiers.hasOwnProperty(modifier=regular_match._modifier.data)&&this.parameterized_modifiers[modifier].call(this,regular_match)}else{return this.modifiers.hasOwnProperty(modifier=regular_match._modifier.data)&&this.modifiers[modifier].call(this,regular_match)}}};var each_node=function(node){return string_interpolator.call(this,node)||literal_modifier.call(this,node)||node.length&&(modifier.call(this,node)||function_destructure.call(this,node)||infix_function.call(this,node)||infix_method.call(this,node)||postfix_function.call(this,node))},result=macroexpander?$(function(node){return macroexpander.call(this,node)||each_node.call(this,node)}):$(each_node);result.modifiers={};result.parameterized_modifiers={};result.literal_modifiers={regexp:{},array:{},string:{},number:{},identifier:{}};return result}})(caterwaul);(function($){$.js_literals=function(caterwaul_function){var function_template=$.parse("function (_) {return _body}");(function(r){r.x=$.reexpander(function(node){return node.with_data(node.data.replace(/\\s+/g,""))});var call_exec_template=$.parse("_regexp.exec(_)");r.qf=function(node){return function_template.replace({_body:call_exec_template.replace({_regexp:node})})}})(caterwaul_function.literal_modifiers.regexp);(function(s){s.qw=$.reexpander(function(node){for(var array_node=new $.syntax("["),comma=new $.syntax(","),delimiter=node.data.charAt(0),pieces=node.as_escaped_string().split(/\\s+/),i=0,l=pieces.length;i<l;++i){comma.push(new $.syntax(delimiter+pieces[i]+delimiter))}return array_node.push(comma.unflatten())});s.qh=$.reexpander(function(node){for(var hash_node=new $.syntax("{"),comma=new $.syntax(","),delimiter=node.data.charAt(0),pieces=node.as_escaped_string().split(/\\s+/),i=0,l=pieces.length;i<l;i+=2){comma.push(new $.syntax(":",new $.syntax(delimiter+pieces[i]+delimiter),new $.syntax(delimiter+pieces[i+1]+delimiter)))}return hash_node.push(comma.unflatten())});s.qr=$.reexpander(function(node){return node.with_data("/"+node.as_escaped_string().replace(/\\//g,"\\\\/")+"/")});s.qs=function(node){return new $.ref($.parse(node.as_unescaped_string()))};s.qf=$.reexpander(function(node){return function_template.replace({_body:$.parse(node.as_unescaped_string())})})})(caterwaul_function.literal_modifiers.string);return caterwaul_function}})(caterwaul);(function($){var scope_template=$.parse("(function () {var _variables; return (_expression)}).call(this)");$.words=function(caterwaul_function){$.merge(caterwaul_function.modifiers,$.words.modifiers);$.merge(caterwaul_function.parameterized_modifiers,$.words.parameterized_modifiers);return caterwaul_function};$.words.modifiers={qs:function(match){return new $.ref(match._expression,"qs")},qse:function(match){return new $.ref(this(match._expression),"qse")},reexpand:function(match){return this(this(match._expression))},noexpand:function(match){return match._expression},raise:$.reexpander("(function () {throw _expression}).call(this)"),eval:function(match){return new $.ref($.compile(this(match._expression)),"eval")},delay:$.reexpander("(function (t, f) {return (function () {return f.call(t)})})(this, (function () {return _expression}))"),lazy:$.reexpander("(function (t, f, v, vc) {return (function () {return vc ? v : (vc = true, v = f.call(t))})})(this, (function () {return _expression}))"),capture:function(match){for(var comma=new $.syntax(","),bindings=match._expression.flatten(","),i=0,l=bindings.length;i<l;++i){comma.push(this(bindings[i]).with_data(":"))}return new $.syntax("{",comma.unflatten())},wcapture:function(match){for(var e=this(match._expression),comma=new $.syntax(","),bindings=e.flatten(","),node,i=0,l=bindings.length;i<l;++i){(node=this(bindings[i]))[1]=node[0],comma.push(node.with_data(":"))}return scope_template.replace({_variables:e,_expression:new $.syntax("{",comma.unflatten())})}};$.words.parameterized_modifiers={given:$.reexpander("(function (_parameters) {return _expression})"),bgiven:$.reexpander("(function (t, f) {return (function () {return f.apply(t, arguments)})})(this, (function (_parameters) {return _expression}))"),rescue:$.reexpander("(function () {try {return (_expression)} catch (e) {return (_parameters)}}).call(this)"),se:$.reexpander("(function (it) {return (_parameters), it}).call(this, (_expression))"),re:$.reexpander("(function (it) {return (_parameters)}).call(this, (_expression))"),where:$.reexpander("(function () {var _parameters; return (_expression)}).call(this)"),using:$.reexpander(function(match){var o=$.compile(this(match._parameters)),comma=new $.syntax(",");for(var k in o){if(Object.prototype.hasOwnProperty.call(o,k)){comma.push(new $.syntax("=",k,new $.ref(o[k])))}}return scope_template.replace({_variables:comma.unflatten(),_expression:match._expression})}),when:$.reexpander("((_parameters) && (_expression))"),unless:$.reexpander("(! (_parameters) && (_expression))")}})(caterwaul);caterwaul.words(caterwaul.js())(function($){$.seq(caterwaul_function)=caterwaul_function-se[it.modifiers.seq(match)=seq_expand.call(seq_expand,anon_pattern.replace({_x:match._expression}))-re-this(it)/when.it]-where[anon_pattern=anon("S[_x]"),seq_expand=$($.alternatives(operator_macros.concat(word_macros)))],where[anon=$.anonymizer("S"),rule(p,e)=$.rereplacer(p.constructor===String?anon(p):p,e.constructor===String?anon(e):e),operator_macros=[rule("S[_x]","_x"),rule("S[_xs + _ys]",concat),rule("S[_xs ^ _ys]",zip),rule("S[_xs - _ys]",cross),rule("S[(_x)]","(S[_x])"),rule("S[_x[_y]]","S[_x][_y]"),rule("S[_xs(_ys)]","S[_xs](_ys)"),rule("S[[_x]]","[_x]"),rule("S[_x, _y]","S[_x], S[_y]"),rule("S[_xs._p]","S[_xs]._p"),rule("S[~[_x]]","[S[_x]]"),rule("S[~_xs(_ys)]","S[_xs](S[_ys])"),rule("S[_x ? _y : _z]","(S[_x]) ? (S[_y]) : (S[_z])"),rule("S[_x && _y]","(S[_x]) && (S[_y])"),rule("S[_x || _y]","(S[_x]) || (S[_y])"),rule("S[+_xs]","Array.prototype.slice.call((_xs))"),rule("S[_xs %_thing]",handle_filter_forms),rule("S[_xs *_thing]",handle_map_forms),rule("S[_xs /_thing]",handle_fold_forms),rule("S[_xs |_thing]",handle_exists_forms),rule("S[_xs %k*_thing]",handle_kmap_forms),rule("S[_xs %v*_thing]",handle_vmap_forms),rule("S[_xs %k%_thing]",handle_kfilter_forms),rule("S[_xs %v%_thing]",handle_vfilter_forms)]-where[unrecognized(reason)=raise[new Error(reason)],use_form(form,xs,body,init,vars)=form?form.replace({_f:body,_init:init}).replace($.merge({_xs:xs},vars)):unrecognized("unsupported sequence operator or modifiers used on #{body}"),operator_case(forms)(match)=parse_modifiers(match._thing,use(forms.normal,forms.inormal),use(forms.bang,forms.ibang),use(forms.tbang,forms.itbang))-where[xs=match._xs,expander=this,form_function(form)(body,vars)=use_form(form,xs,body,null,vars),iform_function(form)(body,init,vars)=use_form(form,xs,body,init,vars),use(form,iform)(body)=parse_body(body,expander,form_function(form),iform_function(iform))],handle_map_forms=operator_case({normal:map,bang:each,tbang:flatmap}),handle_filter_forms=operator_case({normal:filter,bang:filter_not,tbang:map_filter}),handle_fold_forms=operator_case({normal:foldl,bang:foldr,tbang:unfold,inormal:ifoldl,ibang:ifoldr,itbang:iunfold}),handle_kmap_forms=operator_case({normal:kmap,bang:keach}),handle_kfilter_forms=operator_case({normal:kfilter,bang:kfilter_not,tbang:kmap_filter}),handle_vmap_forms=operator_case({normal:vmap,bang:veach}),handle_vfilter_forms=operator_case({normal:vfilter,bang:vfilter_not,tbang:vmap_filter}),handle_exists_forms=operator_case({normal:exists,bang:not_exists}),block=anon("[_x]"),block_with_variable=anon("_var[_x]"),block_with_init=anon("[_init][_x]"),block_with_variable_and_init=anon("_var[_init][_x]"),block_with_closure=anon("+_x"),block_with_seq=anon("~_x"),standard_names={_x:"x",_x0:"x0",_xi:"xi",_xl:"xl"},prefixed_names(p)={_x:p,_x0:"#{p}0",_xi:"#{p}i",_xl:"#{p}l"},function_promotion=anon("_f(_x, _x0, _xi, _xl)"),promote_function(f)=function_promotion.replace({_f:f}),closure_wrapper=anon("(function (_x, _x0, _xi, _xl) {return _f}).call(this, _x, _x0, _xi, _xl)"),close_body(vars,f)=closure_wrapper.replace(vars).replace({_f:f}),seq_pattern=anon("S[_x]"),promote_seq(f)=seq_pattern.replace({_x:f}),parse_body(tree,expand,normal,init)=((r=block_with_seq.match(tree))?parse_body(r._x,expand,sequence_context_normal,sequence_context_init):(r=block_with_closure.match(tree))?parse_body(r._x,expand,wrapping_normal,wrapping_init):(r=block_with_variable_and_init.match(tree))?init(r._x,r._init,prefixed_names(r._var)):(r=block_with_init.match(tree))?init(r._x,r._init,standard_names):(r=block_with_variable.match(tree))?normal(r._x,prefixed_names(r._var)):(r=block.match(tree))?normal(r._x,standard_names):normal(promote_function(tree),standard_names))-where[in_sequence_context(f)=expand.call(expand,promote_seq(f)),sequence_context_normal(f,names)=normal(in_sequence_context(f),names),sequence_context_init(f,init_expression,names)=init(in_sequence_context(f),init_expression,names),wrapping_normal(f,names)=normal(close_body(names,f),names),wrapping_init(f,init_expression,names)=init(close_body(names,f),init_expression,names),r=null],tbang_modifier=anon("~!_x"),bang_modifier=anon("!_x"),parse_modifiers(tree,normal,bang,tbang)=((result=tbang_modifier.match(tree))?tbang(result._x):(result=bang_modifier.match(tree))?bang(result._x):normal(tree))-where[result=null]]-where[loop_anon=$.anonymizer("xs","ys","x","y","i","j","l","lj","r","o","k"),scope=anon("(function (xs) {var _x, _x0, _xi, _xl; _body}).call(this, S[_xs])"),scoped(t)=scope.replace({_body:t}),expand(s)=s.replace(/@/g,"Array.prototype.slice.call").replace(/#/g,"Object.prototype.hasOwnProperty.call"),form(x)=x/!expand/!anon/!scoped/!loop_anon,map=form("for (var ys = new xs.constructor(), _xi = 0, _xl = xs.length; _xi < _xl; ++_xi) _x = xs[_xi], ys.push((_f));              return ys"),each=form("for (var                            _xi = 0, _xl = xs.length; _xi < _xl; ++_xi) _x = xs[_xi], (_f);                       return xs"),flatmap=form("for (var ys = new xs.constructor(), _xi = 0, _xl = xs.length; _xi < _xl; ++_xi) _x = xs[_xi], ys.push.apply(ys, @((_f))); return ys"),filter=form("for (var ys = new xs.constructor(), _xi = 0, _xl = xs.length;     _xi < _xl; ++_xi) _x = xs[_xi], (_f) && ys.push(_x);        return ys"),filter_not=form("for (var ys = new xs.constructor(), _xi = 0, _xl = xs.length;     _xi < _xl; ++_xi) _x = xs[_xi], (_f) || ys.push(_x);        return ys"),map_filter=form("for (var ys = new xs.constructor(), _xi = 0, _xl = xs.length, _y; _xi < _xl; ++_xi) _x = xs[_xi], (_y = (_f)) && ys.push(_y); return ys"),foldl=form("for (var _x0 = xs[0], _xi = 1, _xl = xs.length;            _xi < _xl; ++_xi) _x = xs[_xi], _x0 = (_f); return _x0"),foldr=form("for (var _xl = xs.length, _xi = _xl - 2, _x0 = xs[_xl - 1]; _xi >= 0; --_xi) _x = xs[_xi], _x0 = (_f); return _x0"),unfold=form("for (var ys = [], _x = xs, _xi = 0;                      _x !== null; ++_xi) ys.push(_x), _x = (_f);   return ys"),ifoldl=form("for (var _x0 = (_init), _xi = 0, _xl = xs.length;      _xi < _xl; ++_xi) _x = xs[_xi], _x0 = (_f);     return _x0"),ifoldr=form("for (var _xl = xs.length - 1, _xi = _xl, _x0 = (_init); _xi >= 0; --_xi) _x = xs[_xi], _x0 = (_f);     return _x0"),iunfold=form("for (var ys = [], _x = xs, _xi = 0;                      (_init); ++_xi) ys.push(_x), _x = (_f);       return ys"),exists=form("for (var _x = xs[0], _xi = 0, _xl = xs.length, x; _xi < _xl; ++_xi) {_x = xs[_xi]; if (x = (_f)) return x} return false"),not_exists=form("for (var _x = xs[0], _xi = 0, _xl = xs.length, x; _xi < _xl; ++_xi) {_x = xs[_xi]; if (x = (_f)) return false} return true"),concat=anon("(S[_xs]).concat((S[_ys]))"),zip=form("for (var ys = (S[_ys]), pairs = [], i = 0, l = xs.length; i < l; ++i) pairs.push([xs[i], ys[i]]); return pairs"),cross=form("for (var ys = (S[_ys]), pairs = [], i = 0, l = xs.length, lj = ys.length; i < l; ++i) for (var j = 0; j < lj; ++j) pairs.push([xs[i], ys[j]]);return pairs"),kmap=form("var r = new xs.constructor();    for (var _x in xs) if (#(xs, _x)) r[_f] = xs[_x]; return r"),keach=form("                                 for (var _x in xs) if (#(xs, _x)) _f;             return xs"),kfilter=form("var r = new xs.constructor();    for (var _x in xs) if (#(xs, _x) &&      (_f))  r[_x] = xs[_x]; return r"),kfilter_not=form("var r = new xs.constructor();    for (var _x in xs) if (#(xs, _x) &&    ! (_f))  r[_x] = xs[_x]; return r"),kmap_filter=form("var r = new xs.constructor(), x; for (var _x in xs) if (#(xs, _x) && (x = (_f))) r[x]  = xs[_x]; return r"),vmap=form("var r = new xs.constructor();    for (var  k in xs) if (#(xs, k)) _x = xs[k], r[k] = (_f); return r"),veach=form("                                 for (var  k in xs) if (#(xs, k)) _x = xs[k], _f;          return xs"),vfilter=form("var r = new xs.constructor();    for (var  k in xs) if (#(xs, k)) _x = xs[k],        (_f) && (r[k] = _x); return r"),vfilter_not=form("var r = new xs.constructor();    for (var  k in xs) if (#(xs, k)) _x = xs[k],        (_f) || (r[k] = _x); return r"),vmap_filter=form("var r = new xs.constructor(), x; for (var  k in xs) if (#(xs, k)) _x = xs[k], x = (_f), x && (r[k] =  x); return r")],word_macros=[rule("S[n[_upper]]",n),rule("S[ni[_upper]]",ni),rule("S[_o /keys]",keys),rule("S[_o |object]",object),rule("S[n[_lower, _upper]]",n),rule("S[ni[_lower, _upper]]",ni),rule("S[_o /values]",values),rule("S[_o -object]",object),rule("S[n[_lower, _upper, _step]]",n),rule("S[ni[_lower, _upper, _step]]",ni),rule("S[_o /pairs]",pairs),rule("S[_o /object]",object)]-where[n(match)=n_pattern.replace($.merge({_lower:"0",_step:"1"},match)),ni(match)=ni_pattern.replace($.merge({_lower:"0",_step:"1"},match)),n_pattern=anon("(function (i, u, s) {if ((u - i) * s <= 0) return [];for (var r = [], d = u - i; d > 0 ? i <  u : i >  u; i += s) r.push(i); return r})((_lower), (_upper), (_step))"),ni_pattern=anon("(function (i, u, s) {if ((u - i) * s <= 0) return [];for (var r = [], d = u - i; d > 0 ? i <= u : i >= u; i += s) r.push(i); return r})((_lower), (_upper), (_step))"),scope=anon("(function (o) {_body}).call(this, (S[_o]))"),scoped(t)=scope.replace({_body:t}),form(p)=tree.replace(match)-given.match-where[tree=scoped(anon(p))],keys=form("var ks = []; for (var k in o) Object.prototype.hasOwnProperty.call(o, k) && ks.push(k); return ks"),values=form("var vs = []; for (var k in o) Object.prototype.hasOwnProperty.call(o, k) && vs.push(o[k]); return vs"),pairs=form("var ps = []; for (var k in o) Object.prototype.hasOwnProperty.call(o, k) && ps.push([k, o[k]]); return ps"),object=form("for (var r = {}, i = 0, l = o.length, x; i < l; ++i) x = o[i], r[x[0]] = x[1]; return r")]]})(caterwaul);caterwaul.js_all=function(){return this.seq(this.words(this.js_literals(this.js())))}})();');
-meta::cached_dependency('regexp.js', 'caterwaul.js_all()(function(a){a.regexp(r,options)=a.regexp.parse.apply(this,arguments),a.regexp.syntax=regexp_ctor/-a.syntax_subclass/regexp_methods,a.regexp.parse=regexp_parse,a.regexp.compile=regexp_compile,where[regexp_ctor(xs=arguments)=where[data=xs[0],context=xs[1]][data instanceof this.constructor?this-se[it.data=data.data,it.length=0,it.context=data.context]:this-se[it.data=data,it.length=0,it.context=context,Array.prototype.slice.call(xs,2)*![it.push(x)]-seq]],regexp_methods=capture[i()=this.context.flags.i,m()=this.context.flags.m,g()=this.context.flags.g,concat(x)=new this.constructor(",",this.context,this,x),match_groups()=this.context.groups,referenced_group()=this.context.groups[this[0].data-1],is_zero_width()=/^[\\^\\$]$|^\\\\[Bb]$/.test(this.data)||this.is_positive_lookahead()||this.is_negative_lookahead(),is_one_or_more()=/^\\+\\??$/.test(this.data),is_zero_or_more()=/^\\*\\??$/.test(this.data),is_optional()=/^\\?$/.test(this.data),is_non_greedy()=/.\\?$/.test(this.data),is_repetition()=/^[\\+\\*\\{]\\??$|^\\?$/.test(this.data),repeated_child()=/^\\{/.test(this.data)?this[2]:this[0],is_character_class()=/^\\[/.test(this.data),is_single_escape()=/^\\\\.+$/.test(this.data),is_range()=/^-$/.test(this.data)&&this.length===2,is_atom()=!this.length,is_any_group()=/^\\(/.test(this.data),is_group()=/^\\($/.test(this.data),is_forgetful()=/^\\(\\?:$/.test(this.data),is_positive_lookahead()=/^\\(\\?=$/.test(this.data),is_negative_lookahead()=/^\\(\\?!$/.test(this.data),is_backreference()=/^\\\\$/.test(this.data),is_disjunction()=/^\\|$/.test(this.data)&&this.length===2,is_join()=/^,$/.test(this.data)&&this.length===2,lower_limit()=/^\\+\\??$/.test(this.data)?1:/^\\*\\??$|^\\?$/.test(this.data)?0:/^\\{/.test(this.data)?this[0].data:raise[new Error("lower limit is undefined for nonrepetitive node #{this}")],upper_limit()=/^[\\*\\+]\\??$/.test(this.data)?Infinity:/^\\?$/.test(this.data)?1:/^\\{/.test(this.data)?this[1].data:raise[new Error("upper limit is undefined for nonrepetitive node #{this}")],minimum_length()=this.is_zero_width()?0:this.is_single_escape()||this.is_character_class()?1:this.is_repetition()?this.lower_limit()*this.repeated_child().minimum_length():this.is_group()||this.is_forgetful()?this[0].minimum_length():this.is_backreference()?this.referenced_group().minimum_length():this.is_disjunction()?this[0].minimum_length()/-Math.min/this[1].minimum_length():this.is_join()?this[0].minimum_length()+this[1].minimum_length():this.data.length,toString()=this.is_any_group()?this.data+this[0].toString()+")":this.is_character_class()?this.data+this[0].toString()+"]":this.is_range()?"#{this[0].toString()}-#{this[1].toString()}":this.is_zero_or_more()||this.is_one_or_more()||this.is_optional()?this[0].toString()+this.data:this.is_repetition()?this[2].toString()+(this[0].data===this[1].data?"{#{this[0].data}}":this[1].data===Infinity?"{#{this[0].data},}":"{#{this[0].data},#{this[1].data}}"):this.is_zero_width()?this.data:this.is_backreference()?"\\\\#{this[0].data}":this.is_disjunction()?"#{this[0].toString()}|#{this[1].toString()}":this.is_join()?"#{this[0].toString()}#{this[1].toString()}":this.is_atom()?/^\\w{2,}$/.test(this.data)?"(?:#{this.data})":this.data:this.data],regexp_compile(r)=new RegExp(r.toString(),[r.i()?"i":"",r.m()?"m":"",r.g()?"g":""].join("")),regexp_parse(r,options)=join(toplevel,end)({i:0})-re[it?it.v[0]:raise[new Error("caterwaul.regexp(): failed to parse #{r.toString()}")]]-where[settings={atom:"character"}/-a.merge/options,pieces=/^\\/(.*)\\/([gim]*)$/.exec(r.toString())||/^(.*)$/.exec(r.toString()),s=pieces[1],flags=pieces[2]-re-{i:/i/.test(it),m:/m/.test(it),g:/g/.test(it)},context={groups:[],flags:flags},added_groups={},add_group(node,p)=context.groups.push(node)-se[added_groups[p.i]=true]-unless[added_groups[p.i]],node(xs=arguments)=new a.regexp.syntax(xs[0],context)-se-Array.prototype.slice.call(xs,1)*![it.push(x)]/seq,oneof(c)(p)=p.i<s.length&&c.indexOf(s.charAt(p.i))!==-1&&{v:s.charAt(p.i),i:p.i+1},string(cs)(p)=p.i<s.length&&s.substr(p.i,cs.length)===cs&&{v:s.substr(p.i,cs.length),i:p.i+cs.length},not(n,f)(p)=p.i>=s.length||f(p)?false:{v:s.substr(p.i,n),i:p.i+n},any(n)(p)=p.i<s.length&&{v:s.substr(p.i,n),i:p.i+n},alt(ps=arguments)(p)=ps|[x(p)]|seq,many(f)(p)=p/~![f(x)||null]-seq-re-{v:it.slice(1)*[x.v]-seq,i:it[it.length-1].i}/when[it.length>1],join(ps=arguments)(p)=ps/[p][x0&&x(x0)-se[it&&ns.push(it.v)]]-seq-re-{v:ns,i:it.i}/when.it-where[ns=[]],zero(p)=p,map(parser,f)(p)={v:f.call(result,result.v),i:result.i}-when.result-where[result=parser(p)],ident=oneof("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_"),digit=oneof("0123456789"),hex=oneof("0123456789ABCDEFabcdef"),number=many(digit)/-map/"+_.join(\'\')".qf,end(p)=p.i===s.length&&p,toplevel(p)=toplevel(p),term(p)=term(p),atom(p)=atom(p),toplevel=map(no_pipes/oneof("|")/-join/toplevel,"node(\'|\', _[0], _[2])".qf)/-alt/no_pipes-where[no_pipes(p)=no_pipes(p),no_pipes=map(term/-join/no_pipes,"node(\',\', _[0], _[1])".qf)/-alt/term],term=map(atom/-join/modifiers,"_[1] -se- it.push(_[0])".qf)/-alt/atom-where[star=oneof("*")/-map/node,plus=oneof("+")/-map/node,question_mark=oneof("?")/-map/node,repetition=map(oneof("{")/number/-join/oneof("}"),"node(\'{\', node(_[1]), node(_[1]))".qf)/map(oneof("{")/number/oneof(",")/-join/oneof("}"),"node(\'{\', node(_[1]), node(Infinity))".qf)/-alt/map(oneof("{")/number/oneof(",")/number/-join/oneof("}"),"node(\'{\', node(_[1]), node(_[3]))".qf),modifier=star/plus/-alt/repetition,non_greedy=oneof("?"),modifiers=map(modifier/-join/non_greedy,"_[0] -se [it.data += _[1]]".qf)/modifier/-alt/question_mark],atom=base-where[positive_lookahead=map(string("(?=")/toplevel/-join/string(")"),"node(\'(?=\', _[1])".qf),negative_lookahead=map(string("(?!")/toplevel/-join/string(")"),"node(\'(?!\', _[1])".qf),forgetful_group=map(string("(?:")/toplevel/-join/string(")"),"node(\'(?:\', _[1])".qf),group=map(string("(")/toplevel/-join/string(")"),"node(\'(\', _[1]) -se- add_group(it, this)".qf),word=map(many(ident),"node(_.join(\'\'))".qf),word_term=map(string("(?:")/word/-join/string(")"),"node(_[1])".qf),character_class(p)=character_class(p),character_class=map(each/-join/character_class,"node(\',\', _[0], _[1])".qf)/-alt/each-where[each=map(any(1)/oneof("-")/-join/any(1),"node(\'-\', node(_[0]), node(_[2]))".qf)/map(oneof("\\\\")/-join/any(1),"node(_.join(\'\'))".qf)/-alt/map(not(1,oneof("]")),node)],character_not_in=map(string("[^")/character_class/-join/string("]"),"node(\'[^\', _[1])".qf),character_in=map(string("[")/character_class/-join/string("]"),"node(\'[\',  _[1])".qf),zero_width=oneof("^$")/-map/node,escaped=map(oneof("\\\\")/-join/oneof("BbWwSsDdfnrtv0*+.?|()[]{}\\\\$^"),"node(_.join(\'\'))".qf),escaped_slash=map(string("\\\\/"),"node(\'/\')".qf),control=string("\\\\c")/-join/any(1)/-map/"node(_.join(\'\'))".qf,hex_code=string("\\\\x")/hex/-join/hex/-map/"node(_.join(\'\'))".qf,unicode=string("\\\\u")/hex/hex/hex/-join/hex/-map/"node(_.join(\'\'))".qf,backreference(p)=map(oneof("\\\\")/digit/-join/digit,"+\'#{_[1]}#{_[2]}\'".qf)(p)-re[it&&it.v<=context.groups.length?{v:node("\\\\",node(it.v)),i:it.i}:single_digit_backreference(p)]-where[single_digit_backreference=map(oneof("\\\\")/-join/digit,given.xs in node("\\\\",node(+xs[1])))],dot=oneof(".")/-map/node,other=not(1,oneof(")|+*?{"))/-map/node,maybe_word=settings.atom==="word"?map(many(ident),"node(_.join(\'\'))".qf)/-alt/other:other,maybe_munch_spaces=settings.atom==="word"?many(oneof(" "))/-alt/zero:zero,base=map(maybe_munch_spaces/-join/alt(positive_lookahead,negative_lookahead,forgetful_group,group,character_not_in,character_in,zero_width,escaped,escaped_slash,control,hex_code,unicode,backreference,dot,maybe_word),"_[1]".qf)]]]})(caterwaul);');
-meta::configuration('dependencies', <<'__');
-# Caterwaul extensions depend on caterwaul with standard extensions. You can
-# also add any additional dependencies here:
-
-caterwaul.js:     ../caterwaul/build/caterwaul.min.js
-caterwaul.std.js: ../caterwaul/build/caterwaul.std.min.js
-regexp.js:        ../caterwaul-regexp/regexp.min.js
-
-__
 meta::data('author', 'Spencer Tipping');
 meta::data('default-action', 'shell');
-meta::data('description', <<'__');
-This script provides an easy-to-use REPL when writing Caterwaul extensions. It
-also renders the extension source to a .js file.
-
-__
 meta::data('license', <<'__');
 MIT License
 Copyright (c) 2010 Spencer Tipping
@@ -421,7 +372,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 __
-meta::data('permanent-identity', '39a83f5280ba6baa837982db30475a17');
 meta::function('ad', <<'__');
 return @{$transient{path}} = () unless @_;
 push @{$transient{path}}, @_;
@@ -470,25 +420,6 @@ around_hook('create', $name, $value, sub {
 __
 meta::function('current-state', 'serialize(\'-pS\');');
 meta::function('disable', 'hook(\'disable\', chmod_self(sub {$_[0] & 0666}));');
-meta::function('dupdate', <<'__');
-# Update the repository based on the dependencies it lists. These dependencies
-# can be anything that's retrievable.
-
-# If you have any ::s in the local name of the dependency, then the cached_dependency::
-# prefix won't be added. This lets you import slices of other objects and have
-# those slices merge into any namespace you'd like.
-
-rm(grep /^cached_dependency::/, keys %data);
-my %dependencies = map &{attribute($_)}(), select_keys('--criteria' => "^configuration::depend.*");
-
-for (keys %dependencies) {
-  terminal::info("Retrieving $dependencies{$_} as $_");
-  my $prefix = /::/ ? '' : 'cached_dependency::';
-  associate("${prefix}$_", retrieve($dependencies{$_}))}
-
-reload();
-
-__
 meta::function('edit', <<'__');
 my ($name, %options) = @_;
 my $extension = extension_for($name);
@@ -498,8 +429,15 @@ die "$name is inherited; use 'edit $name -f' to edit anyway" unless is($name, '-
 
 around_hook('edit', @_, sub {
   associate($name, invoke_editor_on($data{$name} // '', %options, attribute => $name, extension => $extension), execute => 1)});
+
 save() unless $data{'data::edit::no-save'};
 '';
+
+__
+meta::function('edit-self', <<'__');
+$global_data = invoke_editor_on($global_data);
+save();
+
 __
 meta::function('enable', 'hook(\'enable\', chmod_self(sub {$_[0] | $_[0] >> 2}));');
 meta::function('export', <<'__');
@@ -510,31 +448,6 @@ my $name = pop @_;
 file::write($name, join "\n", retrieve(@_));
 __
 meta::function('extern', '&{$_[0]}(retrieve(@_[1 .. $#_]));');
-meta::function('gU', <<'__');
-sh("git push @_");
-
-__
-meta::function('ga', <<'__');
-sh("git add @_");
-
-__
-meta::function('gc', <<'__');
-around_hook('git-commit', @_, sub {
-  my $message = join ' ', @_;
-  $message =~ s/'/\\'/g;
-  enable();
-  sh("git commit -a -m '$message'");
-  disable()});
-
-__
-meta::function('gd', <<'__');
-sh('git diff');
-
-__
-meta::function('gl', <<'__');
-sh("git log @_");
-
-__
 meta::function('grep', <<'__');
 # Looks through attributes for a pattern. Usage is grep pattern [options], where
 # [options] is the format as provided to select_keys.
@@ -564,14 +477,6 @@ unless ($$options{'-C'}) {
   s/^/\033[1;32m/o && s/$/\033[0;0m/o for @m_line_numbers}
 
 table_display([@m_attributes], [@m_line_numbers], [@m_lines]);
-__
-meta::function('gs', <<'__');
-sh('git status');
-
-__
-meta::function('gu', <<'__');
-sh("git pull @_");
-
 __
 meta::function('hash', 'fast_hash(@_);');
 meta::function('hook', <<'__');
@@ -637,34 +542,19 @@ join "\n", map strip($_), split /\n/, table_display($external ? [grep length, @e
                                                     $sizes ? ([@sizes]) : (), $flags ? ([@flags]) : (), $hashes ? ([@hashes]) : (), $parent_hashes ? ([@parent_hashes]) : ());
 
 __
-meta::function('module', <<'__');
-my ($name) = @_;
+meta::function('minify-yui', <<'__');
+# Minify using YUI compressor
+my ($options, @filenames) = separate_options(@_);
+my $nomunge   = $$options{-m} ? '' : '--nomunge';
+my $linebreak = $$options{-B} ? '' : '--line-break 160';
 
-associate("module::$name", <<end);
-Module name | Author name
-Licensed under the terms of the MIT source code license
+for my $filename (@filenames) {
+  my $minified = $filename;
+  $minified =~ s/\.js$/.min.js/;
 
-Introduction.
-This module is called $name.
-end
-
-associate('sdoc::js::modules', retrieve('sdoc::js::modules') . "\n- include perl::sdoc('pp::module::$name')\n");
-
-terminal::info("created module $name, which is automatically loaded into REPL sessions.",
-               'some relevant commands:',
-               '',
-               "> edit module::$name  (longhand way to edit stuff)",
-               "> $name               (provided by meta::type::module)",
-               '> repl',
-               '> er       (to edit the REPL script)',
-               '> em       (to edit the module list)',
-               '> et       (to edit the test script)',
-               '> render');
-
-__
-meta::function('modules', <<'__');
-# Identify the modules defined by the user.
-grep s/^module:://, sort keys %data;
+  terminal::info("minifying $filename");
+  file::write($minified, join '', qx(yuicompressor $nomunge $linebreak "$filename"));
+}
 
 __
 meta::function('mv', <<'__');
@@ -738,25 +628,19 @@ while ($old_string ne $string and $expansions++ < $limit) {
 $string;
 __
 meta::function('rd', <<'__');
-my $pattern = join '|', @_;
-@{$transient{path}} = grep $_ !~ /^$pattern$/, @{$transient{path}};
+if (@_) {my $pattern = join '|', @_;
+         @{$transient{path}} = grep $_ !~ /^$pattern$/, @{$transient{path}}}
+else    {pop @{$transient{path}}}
 
 __
 meta::function('reload', 'around_hook(\'reload\', sub {execute($_) for grep ! /^bootstrap::/, keys %data});');
 meta::function('render', <<'__');
-around_hook('render', @_, sub {
-  file::write("$_.js",     sdoc("module::$_")) for modules();
-  file::write('test.html', retrieve('pp::html::test'))});
+file::write('parser.waul', retrieve('waul::parser'));
+file::write('parser.md',   retrieve('markdown::waul::parser'));
 
-__
-meta::function('render-min', <<'__');
-# Minifies rendered Javascript files.
-system("yuicompressor $_.js -o $_.min.js") for modules();
-
-__
-meta::function('repl', <<'__');
-around_hook('repl', sub {
-  with_exported('pp::js::repl', sub {sh('node', @_)})});
+terminal::info('waul-compiling parser.waul');
+sh('waul parser.waul');
+minify_yui('parser.js');
 
 __
 meta::function('rm', <<'__');
@@ -769,6 +653,12 @@ meta::function('rmparent', <<'__');
 my ($options, @parents) = separate_options(@_);
 my $clobber_divergent = $$options{'-D'} || $$options{'--clobber-divergent'};
 
+my %parents = map {$_ => 1} @parents;
+my @other_parents = grep !$parents{$_}, grep s/^parent:://, select_keys('--namespace' => 'parent');
+my %kept_by_another_parent;
+
+$kept_by_another_parent{$_} = 1 for grep s/^(\S+)\s.*$/\1/, split /\n/o, cat(@other_parents);
+
 for my $parent (@parents) {
   my $keep_parent_around = 0;
 
@@ -777,7 +667,7 @@ for my $parent (@parents) {
     next unless exists $data{$name};
 
     my $local_hash = fast_hash(retrieve($name));
-    if ($clobber_divergent or $hash eq $local_hash or ! defined $hash) {rm($name)}
+    if ($clobber_divergent or $hash eq $local_hash or ! defined $hash) {rm($name) unless $kept_by_another_parent{$name}}
     else {terminal::info("local attribute $name exists and is divergent; use rmparent -D $parent to delete it");
           $keep_parent_around = 1}}
 
@@ -799,11 +689,11 @@ meta::function('sdoc', <<'__');
 
 my %comments_for_extension = 
   qw|c     /*,*/  cpp   //    cc   //    h    //    java //  py  #    rb   #    pl  #   pm   #         ml   (*,*)  js  //
-     hs    --     sh    #     lisp ;;;   lsp  ;;;   s    ;   scm ;;;  sc   ;;;  as  //  html <!--,-->  mli  (*,*)  cs  //
+     hs    --     sh    #     lisp ;;;   lsp  ;;;   s    #   scm ;;;  sc   ;;;  as  //  html <!--,-->  mli  (*,*)  cs  //
      vim   "      elisp ;     bas  '     ada  --    asm  ;   awk #    bc   #    boo #   tex  %         fss  (*,*)  erl %
      scala //     hx    //    io   //    j    NB.   lua  --  n   //   m    %    php //  sql  --        pov  //     pro %
      r     #      self  ","   tcl  #     texi @c    tk   #   csh #    vala //   vbs '   v    /*,*/     vhdl --     ss  ;;;
-     haml  -#     sass  /*,*/ scss /*,*/ css  /*,*/ fig  /|;
+     haml  -#     sass  /*,*/ scss /*,*/ css  /*,*/ fig  /   waul #|;
 
 # No extension suggests a shebang line, which generally requires # to denote a comment.
 $comments_for_extension{''} = '#';
@@ -826,7 +716,7 @@ my ($other_extension) = extension_for($filename);
 $other_extension =~ s/\.sdoc$//io;
 $other_extension =~ s/^\.//o;
 
-my ($start, $end) = split /,/o, $comments_for_extension{lc($other_extension || $extension)} // $comments_for_extension{''};
+my ($start, $end) = split /,/o, $comments_for_extension{lc($other_extension || $extension)} // $comments_for_extension{''} // '#';
 
 join '', map(is_code($_) || is_blank($_) ? ($_ =~ /^\s*c\n(.*)$/so ? $1 : $_) : comment($_, $start, $end), paragraphs retrieve($filename)),
          "\n$start $generated_string $end\n";
@@ -858,7 +748,7 @@ my ($attribute)   = @_;
 my @paragraphs    = split /\n(?:\s*\n)+/, retrieve($attribute);
 
 my $known_tags    = join '|', qw[html head body meta script style link title div a span input button textarea option select form label iframe blockquote code caption
-                                 table tbody tr td th thead tfoot img h1 h2 h3 h4 h5 h6 li ol ul noscript p pre samp sub sup var canvas audio video];
+                                 table tbody tr td th thead tfoot img h1 h2 h3 h4 h5 h6 li ol ul noscript p pre samp sub sup var canvas audio video strong em];
 my $section_level = 0;
 my @markup;
 
@@ -887,13 +777,50 @@ for (@paragraphs) {
   &$code(),   next unless /^\h*[A-Z|]/;
   &$quoted(), next if     /^\h*\|/;
 
-  &$title(), s/^.*\n// if /^(\s*)(\S.*)\.\n([^\n]+)/ and length("$1$2") - 10 < length($3);
+  &$title(), s/^.*\n// if /^(\s*)(\S.*)\.\n([^\n]+)/ and length("$1$2") < 60 and length("$1$2") - 10 < length($3);
   &$paragraph();
 }
 
 &$close_section($section_level) while $section_level--;
 
 join "\n", @markup;
+
+__
+meta::function('sdoc-markdown', <<'__');
+# Renders a chunk of SDoc as Markdown. This involves converting quoted and
+# unquoted code and section headings, but not numbered lists.
+
+my ($attribute)   = @_;
+my @paragraphs    = split /\n(?:\s*\n)+/, retrieve($attribute);
+
+my $section_level = 0;
+my @markup;
+
+my $indent        = sub {'  ' x ($_[0] || $section_level)};
+my $unindent      = sub {my $spaces = '  ' x ($section_level - 1); s/^$spaces//gm; $_};
+
+my $code          = sub {&$unindent(); s/^c\n//;                   push @markup, join("\n", map &$indent(2) . $_, split /\n/)};
+my $quoted        = sub {&$unindent(); s/^\|(\s?)/ \1/; s/^  //mg; push @markup, join("\n", map &$indent(2) . $_, split /\n/)};
+
+my $heading       = sub {'#' x $_[0]};
+my $section       = sub {&$unindent(); push @markup, &$heading($_[0]) . ' ' . $2};
+
+my $title = sub {
+  my $indentation = (length($1) >> 1) + 1;
+  &$section($indentation);
+  $section_level = $indentation;
+};
+
+for (@paragraphs) {
+  &$code(),   next unless /^\h*[A-Z|]/;
+  &$quoted(), next if     /^\h*\|/;
+
+  &$title(), s/^.*\n// if /^(\s*)(\S.*)\.\n([^\n]+)/ and length("$1$2") < 60 and length("$1$2") - 10 < length($3);
+  push @markup, join "\n", map &$unindent(), split /\n/;
+}
+
+join "\n\n", @markup;
+
 __
 meta::function('sdocp', <<'__');
 # Renders an attribute as SDocP. This logic was taken directly from the sdoc script.
@@ -906,8 +833,9 @@ my ($options, @criteria) = separate_options(@_);
 my $partial     = $$options{'-p'};
 my $criteria    = join '|', @criteria;
 my @attributes  = map serialize_single($_), select_keys(%$options, '-m' => 1, '--criteria' => $criteria), select_keys(%$options, '-M' => 1, '--criteria' => $criteria);
-my @final_array = @{$partial ? \@attributes : [retrieve('bootstrap::initialization'), @attributes, 'internal::main();', '', '__END__']};
+my @final_array = @{$partial ? \@attributes : [retrieve('bootstrap::initialization'), @attributes, 'internal::main();', '', '__DATA__', $global_data]};
 join "\n", @final_array;
+
 __
 meta::function('serialize-single', <<'__');
 # Serializes a single attribute and optimizes for content.
@@ -947,7 +875,7 @@ __
 meta::function('size', <<'__');
 my $size = 0;
 $size += length $data{$_} for keys %data;
-sprintf "% 7d % 7d % 7d", length(serialize()), $size, length(serialize('-up'));
+sprintf "   full logical  unique    self\n% 7d % 7d % 7d % 7d", length(serialize()), $size, length(serialize('-up')), length $global_data;
 
 __
 meta::function('snapshot', <<'__');
@@ -961,11 +889,6 @@ my @keys = sort keys %data;
 my $hash = fast_hash(fast_hash(scalar @keys) . join '|', @keys);
 $hash = fast_hash("$data{$_}|$hash") for @keys;
 $hash;
-__
-meta::function('test', <<'__');
-around_hook('test', sub {
-  with_exported('pp::js::test-setup', sub {sh('node', @_)})});
-
 __
 meta::function('touch', 'associate($_, \'\') for @_;');
 meta::function('unlock', 'hook(\'unlock\', chmod_self(sub {$_[0] | 0200}));');
@@ -1049,22 +972,28 @@ terminal::error("Verification failed; expected $state but got $observed from $ot
 hook('after-verify', $result, observed => $observed, expected => $state);
 $result;
 __
-meta::hook('before-shell::ad-module', <<'__');
-ad('module::');
+meta::function('waul', <<'__');
+my ($name, %options) = @_;
+$name =~ s/^waul:://;
+my $output     = $options{output} || "$name.js";
+my $extensions = $options{extensions} ? join(' ', map "--extension '$_'", split /\s+/, $options{extensions}) : '';
+my $waul       = retrieve("waul::$name") =~ m-^#!/usr/bin/env (\S+)- ? $1 : 'waul';
+
+terminal::info("compiling waul::$name using $waul ($extensions)");
+
+with_exported("waul::$name", sub {
+  my ($exported) = @_;
+  sh("$waul --output '$output' $extensions $exported")});
 
 __
-meta::hook('before-shell::note-about-module-function', <<'__');
-terminal::info('use the "module" function to create a new Javascript file; e.g:', '',
-               '> module foo', '',
-               'this will create an attribute sdoc::js::foo and will append a preprocessor',
-               'entry to sdoc::js::repl.', '',
-               'defined modules:', map("  $_", modules()));
+meta::hook('before-shell::ad', <<'__');
+ad('waul::');
 
 __
 meta::indicator('cc', 'length ::retrieve(\'data::current-continuation\') ? "\\033[1;36mcc\\033[0;0m" : \'\';');
 meta::indicator('locked', 'is_locked() ? "\\033[1;31mlocked\\033[0;0m" : \'\';');
 meta::indicator('path', <<'__');
-join "\033[1;30m|\033[0;0m", @{$transient{path}};
+join "\033[1;30m/\033[0;0m", @{$transient{path}};
 
 __
 meta::internal_function('around_hook', <<'__');
@@ -1089,8 +1018,9 @@ meta::internal_function('associate', <<'__');
 my ($name, $value, %options) = @_;
 die "Namespace does not exist" unless exists $datatypes{namespace($name)};
 $data{$name} = $value;
-execute($name) if $options{'execute'};
+execute($name) if $options{execute};
 $value;
+
 __
 meta::internal_function('attribute', <<'__');
 my ($name) = @_;
@@ -1101,7 +1031,6 @@ meta::internal_function('attribute_is', <<'__');
 my ($a, %options) = @_;
 my %inherited     = parent_attributes(grep /^parent::/o, sort keys %data) if grep exists $options{$_}, qw/-u -U -d -D/;
 my $criteria      = $options{'--criteria'} || $options{'--namespace'} && "^$options{'--namespace'}::" || '.';
-my $path          = $options{'--path'} ? join('|', @{$options{'--path'}}) : '.';
 
 my %tests = ('-u' => sub {! $inherited{$a}},
              '-d' => sub {$inherited{$a} && fast_hash(retrieve($a)) ne $inherited{$a}},
@@ -1111,7 +1040,9 @@ my %tests = ('-u' => sub {! $inherited{$a}},
 
 return 0 unless scalar keys %tests == scalar grep ! exists $options{$_}    ||   &{$tests{$_}}(), keys %tests;
 return 0 unless scalar keys %tests == scalar grep ! exists $options{uc $_} || ! &{$tests{$_}}(), keys %tests;
-$a =~ /$criteria/ and $a =~ /$path/;
+
+$a =~ /$_/ || return 0 for @{$options{'--path'}};
+$a =~ /$criteria/;
 
 __
 meta::internal_function('cache', <<'__');
@@ -1149,6 +1080,7 @@ meta::internal_function('exported', <<'__');
 my $filename = temporary_name();
 file::write($filename, cat(@_));
 $filename;
+
 __
 meta::internal_function('extension_for', <<'__');
 my $extension = $transient{extension}{namespace($_[0])};
@@ -1289,6 +1221,7 @@ __
 meta::internal_function('retrieve', <<'__');
 my @results = map defined $data{$_} ? $data{$_} : retrieve_with_hooks($_), @_;
 wantarray ? @results : $results[0];
+
 __
 meta::internal_function('retrieve_with_hooks', <<'__');
 # Uses the hooks defined in $transient{retrievers}, and returns undef if none work.
@@ -1427,7 +1360,329 @@ __
 meta::message_color('cc', '36');
 meta::message_color('state', 'purple');
 meta::message_color('states', 'yellow');
-meta::module('parser', <<'__');
+meta::parent('/home/spencertipping/bin/object', <<'__');
+bootstrap::html                         f44dd03cb0c904b3a5f69fbda5f018d0
+bootstrap::initialization               d22fafa2938ecb0d4728e2958b54ed3d
+bootstrap::perldoc                      5793df44bdd2526bb461272924abfd4b
+function::ad                            77a05d9a6fef7871b2c3e8e94b56870a
+function::alias                         8eeeeb4e064ef3aba7edf8f254427bc2
+function::cat                           f684de6c8776617a437b76009114f52e
+function::cc                            12ea9176e388400704d823433c209b7a
+function::ccc                           d151a9793edd83f80fb880b7f0ab9b34
+function::child                         f5764adf0b4e892f147a9b6b68d4816f
+function::clone                         bb42e04e10a8e54e88786b6fbc4fb213
+function::cp                            3fe69d1b58d90045ad520048977538c4
+function::create                        3010d55f4dfa59a998742e07823ed54d
+function::current-state                 6f03f86f1901e9ef07fdb5d4079a914c
+function::disable                       53b449708cc2ffdefa352e53bb7d847d
+function::edit                          beae8b1d7292e2ce2913199ff32f2501
+function::edit-self                     71790df00f941ed9b56e17f789b93871
+function::enable                        7de1cedc36841f5de8f9fdfbc3b65097
+function::export                        2374cd1dbf7616cb38cafba4e171075d
+function::extern                        1290a5223e2824763eecfb3a54961eff
+function::grep                          55c3cea8ff4ec2403be2a9d948e59f14
+function::hash                          6ee131d093e95b80039b4df9c7c84a02
+function::hook                          675cdb98b5dd8567bdd5a02ead6184b5
+function::hooks                         3d989899c616f7440429a2d9bf1cc44b
+function::identity                      6523885762fcc2f354fc25cf6ed126ce
+function::import                        5d0f0634cbd01274f2237717507198a2
+function::initial-state                 03d8ed608855a723124e79ca184d8e73
+function::is                            41564c8f21b12ab80824ac825266d805
+function::load-state                    b6cf278a1f351f316fa6e070359b6081
+function::lock                          5d8db258704e6a8623fac796f62fac02
+function::ls                            01a23d51d5b529e03943bd57e33f92df
+function::mv                            4a0e338a6edb89ad1e2c779d51d4d47b
+function::name                          955ba2d1fe1d67cd78651a4042283b00
+function::parents                       3da9e63b5aae9e2f5dcc946a86d166aa
+function::perl                          a0f341ea54391b63b6195e7992b6a686
+function::rd                            2adb16d7e819d2e87a27201744a581e7
+function::reload                        1589f4cf8374e0011991cb8907afca3e
+function::rm                            6f6fd7a6c25558eb469d78ea888f8551
+function::rmparent                      fc2884910a6939a47898a778f277332c
+function::save                          778c0e1043b9c6c96fb8f266f8061624
+function::save-state                    5af59ebc4ad8965767e4dc106d3b557e
+function::serialize                     a97c7391c635a93b0a710d10eb8cb3cd
+function::serialize-single              aa77af032272f5a2664e21713739a223
+function::sh                            1b2f542ca9dd63ad437058b7f6f61aac
+function::shb                           7b2685a4041c25bc495816e472bdace5
+function::shell                         a87f389b94713e5855e62241d649d01d
+function::size                          69f6ab4a100c6ef05d4d41510004d645
+function::snapshot                      56939a47f2758421669641e15ebd66eb
+function::state                         8c68044dccae28f33244d0c7e9e9acfb
+function::touch                         3991b1b7c7187566f50e5e58ce01fa06
+function::unlock                        b4aac02f7f3fb700acf4acfd9b180ceb
+function::update                        ac391dc90e507e7586c81850e7c2ecdd
+function::update-from                   631721c4dc30e11b2023a6703cbcef52
+function::usage                         5bdd370f5a56cfbf199e08d398091444
+function::verify                        0c0cc1dfeab7d705919df122f7850a4f
+indicator::cc                           3db7509c521ee6abfedd33d5f0148ed3
+indicator::locked                       fc2b4f4ca0d6a334b9ac423d06c8f18c
+indicator::path                         9ec891df17cd45895f03a6124f9d065f
+internal_function::around_hook          7cc876e7c5f78c34654337fc95255587
+internal_function::associate            55f202ffdbc6b9005e53d3e82f5f9bfe
+internal_function::attribute            dd6f010f9688977464783f60f5b6d3dd
+internal_function::attribute_is         40bda8226322505e323ea6d405388f08
+internal_function::cache                eb9da45580a9ac0882baf98acd2ecd60
+internal_function::chmod_self           2035e861eedab55ba0a9f6f5a068ca70
+internal_function::dangerous            46c4baaa214ab3d05af43e28083d5141
+internal_function::debug_trace          0faf9d9f4159d72dfe4481f6f3607ce1
+internal_function::execute              f0924e087d978ff2ab1e117124db3042
+internal_function::exported             ae35afef7d4762f2818aee5872c75be0
+internal_function::extension_for        9de8261d69cc93e9b92072b89c89befd
+internal_function::fast_hash            ee5eba48f837fda0fe472645fdd8899a
+internal_function::file::read           e647752332c8e05e81646a3ff98f9a8e
+internal_function::file::write          3e290fdcb353c6f842eb5a40f2e575f8
+internal_function::fnv_hash             c36d56f1e13a60ae427afc43ba025afc
+internal_function::hypothetically       b83e3f894a6df8623ccd370515dfd976
+internal_function::internal::main       f31f2945a19a668d92505f114ab29c78
+internal_function::invoke_editor_on     5eb976796f0ec172d6ec036116a2f41e
+internal_function::is_locked            da12ced6aa38295251f7e748ffd22925
+internal_function::namespace            784d2e96003550681a4ae02b8d6d0a27
+internal_function::parent_attributes    f6ccfaa982ab1a4d066043981aaca277
+internal_function::parent_ordering      57b6da88f76b59f3fed9abfa61280e5e
+internal_function::retrieve             721a6800f328da05047fd7392758f55d
+internal_function::retrieve_with_hooks  0f1b0220ccd973d57a2e96ff00458cf2
+internal_function::select_keys          a5e3532ec6d58151d0ee24416ea1e2b5
+internal_function::separate_options     34ec41a6edaa15adde607a0db3ccfa36
+internal_function::strip                14f490b10ebd519e829d8ae20ea4d536
+internal_function::table_display        d575f4dc873b2e0be5bd7352047fd904
+internal_function::temporary_name       6f548d101fc68356515ffd0fc9ae0c93
+internal_function::translate_backtrace  d77a56d608473b3cd8a3c6cb84185e10
+internal_function::with_exported        df345d5095d5ed13328ddd07ea922b36
+library::shell                          6b9f3befb61a01e9132a440601f8ea0a
+library::terminal                       7e2d045782405934a9614fe04bcfe559
+message_color::cc                       2218ef0f7425de5c717762ffb100eb43
+message_color::state                    03621cd6ac0b1a40d703f41e26c5807f
+message_color::states                   ac66eeeff487b5f43f88a78ea18b3d56
+meta::configure                         69c2e727c124521d074fde21f8bbc4db
+meta::externalize                       aa44e27e0bbee6f0ca4de25d603a1fc7
+meta::functor::editable                 48246c608f363de66511400e00b26164
+meta::type::alias                       889d26d2df385e9ff8e2da7de4e48374
+meta::type::bootstrap                   51108ab2ddb8d966e927c8f62d9ef3e5
+meta::type::cache                       9267171f2eace476f64a1a670eaaf2c7
+meta::type::data                        120e1649a468d3b3fd3fb783b4168499
+meta::type::function                    8ea626198861dc59dd7f303eecb5ff88
+meta::type::hook                        ff92aef328b6bdc6f87ddd0821f3e42f
+meta::type::inc                         78e0375b6725487cb1f0deca41e96bbe
+meta::type::indicator                   feb54a2624e6983617685047c717427f
+meta::type::internal_function           eff3cf31e2635f51c83836f116c99d2f
+meta::type::library                     7622e8d65e03066668bade74715d65ad
+meta::type::message_color               557a1b44979cbf77a7251fbdc4c5b82c
+meta::type::meta                        c6250056816b58a9608dd1b2614246f8
+meta::type::parent                      09d1d03379e4e0b262e06939f4e00464
+meta::type::retriever                   71a29050bf9f20f6c71afddff83addc9
+meta::type::state                       84da7d5220471307f1f990c5057d3319
+retriever::file                         3bbc9d8a887a536044bafff1d54def7e
+retriever::global                       4fe8df0cca548075169968772843a156
+retriever::id                           4da6080168d32445150cc4200af7af6e
+retriever::object                       c7633990b4e01bdc783da7e545799f4f
+retriever::perl                         f41938e6dbad317f62abffc1e4d28cca
+
+__
+meta::parent('/home/spencertipping/bin/waul-object', <<'__');
+function::minify-yui                                        6374d98eda8642e5cdebe4fb34f5419b
+function::waul                                              66b92f55d5db498934b487188a04b16d
+meta::type::waul                                            869b5820cd79178b94c3ccdd47dff9df
+parent::/home/spencertipping/conjectures/perl-objects/js    08631314298573e77850afe27d7d3003
+parent::/home/spencertipping/conjectures/perl-objects/sdoc  5ead79278263770b4bd3f4928f4b28aa
+parent::preprocessor                                        4450ebbe2c9d3a70ada4050fcd567907
+
+__
+meta::parent('/home/spencertipping/conjectures/perl-objects/js', <<'__');
+meta::type::js                           0377fcc438f3af85ec87d4770b8cd307
+parent::/home/spencertipping/bin/object  1f1bf492b56b2f0196b2018b11b8c991
+
+__
+meta::parent('/home/spencertipping/conjectures/perl-objects/sdoc', <<'__');
+function::sdoc                           f0cea831720d18449455a8ed79181727
+function::sdoc-html                      b23152b3f5be696e5bae842ec43fc5a4
+function::sdoc-markdown                  a35a6441dd750466f2d0e636bee2b382
+function::sdocp                          c3d738d982ba87418a298ff58478a85b
+meta::type::sdoc                         22cd7315641d38c9d536344e83c36bed
+meta::type::slibrary                     95474943c4a5f8ff17d3cf66ddb7c386
+parent::/home/spencertipping/bin/object  1f1bf492b56b2f0196b2018b11b8c991
+retriever::html-sdoc                     2a5d5aa45e2d7576f79e045177d8705c
+retriever::markdown-sdoc                 20651301fffb3c018da926ede531f84c
+retriever::sdoc                          662061e9e41491e2a1debd6862ccf1e7
+retriever::sdocp                         330694ea14a23bb04b65c761075cd946
+
+__
+meta::parent('object', <<'__');
+bootstrap::html                         f44dd03cb0c904b3a5f69fbda5f018d0
+bootstrap::initialization               d22fafa2938ecb0d4728e2958b54ed3d
+bootstrap::perldoc                      5793df44bdd2526bb461272924abfd4b
+function::ad                            77a05d9a6fef7871b2c3e8e94b56870a
+function::alias                         8eeeeb4e064ef3aba7edf8f254427bc2
+function::cat                           f684de6c8776617a437b76009114f52e
+function::cc                            12ea9176e388400704d823433c209b7a
+function::ccc                           d151a9793edd83f80fb880b7f0ab9b34
+function::child                         f5764adf0b4e892f147a9b6b68d4816f
+function::clone                         bb42e04e10a8e54e88786b6fbc4fb213
+function::cp                            3fe69d1b58d90045ad520048977538c4
+function::create                        3010d55f4dfa59a998742e07823ed54d
+function::current-state                 6f03f86f1901e9ef07fdb5d4079a914c
+function::disable                       53b449708cc2ffdefa352e53bb7d847d
+function::edit                          beae8b1d7292e2ce2913199ff32f2501
+function::edit-self                     71790df00f941ed9b56e17f789b93871
+function::enable                        7de1cedc36841f5de8f9fdfbc3b65097
+function::export                        2374cd1dbf7616cb38cafba4e171075d
+function::extern                        1290a5223e2824763eecfb3a54961eff
+function::grep                          55c3cea8ff4ec2403be2a9d948e59f14
+function::hash                          6ee131d093e95b80039b4df9c7c84a02
+function::hook                          675cdb98b5dd8567bdd5a02ead6184b5
+function::hooks                         3d989899c616f7440429a2d9bf1cc44b
+function::identity                      6523885762fcc2f354fc25cf6ed126ce
+function::import                        5d0f0634cbd01274f2237717507198a2
+function::initial-state                 03d8ed608855a723124e79ca184d8e73
+function::is                            41564c8f21b12ab80824ac825266d805
+function::load-state                    b6cf278a1f351f316fa6e070359b6081
+function::lock                          5d8db258704e6a8623fac796f62fac02
+function::ls                            01a23d51d5b529e03943bd57e33f92df
+function::mv                            4a0e338a6edb89ad1e2c779d51d4d47b
+function::name                          955ba2d1fe1d67cd78651a4042283b00
+function::parents                       3da9e63b5aae9e2f5dcc946a86d166aa
+function::perl                          a0f341ea54391b63b6195e7992b6a686
+function::rd                            2adb16d7e819d2e87a27201744a581e7
+function::reload                        1589f4cf8374e0011991cb8907afca3e
+function::rm                            6f6fd7a6c25558eb469d78ea888f8551
+function::rmparent                      fc2884910a6939a47898a778f277332c
+function::save                          778c0e1043b9c6c96fb8f266f8061624
+function::save-state                    5af59ebc4ad8965767e4dc106d3b557e
+function::serialize                     a97c7391c635a93b0a710d10eb8cb3cd
+function::serialize-single              aa77af032272f5a2664e21713739a223
+function::sh                            1b2f542ca9dd63ad437058b7f6f61aac
+function::shb                           7b2685a4041c25bc495816e472bdace5
+function::shell                         a87f389b94713e5855e62241d649d01d
+function::size                          69f6ab4a100c6ef05d4d41510004d645
+function::snapshot                      56939a47f2758421669641e15ebd66eb
+function::state                         8c68044dccae28f33244d0c7e9e9acfb
+function::touch                         3991b1b7c7187566f50e5e58ce01fa06
+function::unlock                        b4aac02f7f3fb700acf4acfd9b180ceb
+function::update                        ac391dc90e507e7586c81850e7c2ecdd
+function::update-from                   631721c4dc30e11b2023a6703cbcef52
+function::usage                         5bdd370f5a56cfbf199e08d398091444
+function::verify                        0c0cc1dfeab7d705919df122f7850a4f
+indicator::cc                           3db7509c521ee6abfedd33d5f0148ed3
+indicator::locked                       fc2b4f4ca0d6a334b9ac423d06c8f18c
+indicator::path                         9ec891df17cd45895f03a6124f9d065f
+internal_function::around_hook          7cc876e7c5f78c34654337fc95255587
+internal_function::associate            55f202ffdbc6b9005e53d3e82f5f9bfe
+internal_function::attribute            dd6f010f9688977464783f60f5b6d3dd
+internal_function::attribute_is         40bda8226322505e323ea6d405388f08
+internal_function::cache                eb9da45580a9ac0882baf98acd2ecd60
+internal_function::chmod_self           2035e861eedab55ba0a9f6f5a068ca70
+internal_function::dangerous            46c4baaa214ab3d05af43e28083d5141
+internal_function::debug_trace          0faf9d9f4159d72dfe4481f6f3607ce1
+internal_function::execute              f0924e087d978ff2ab1e117124db3042
+internal_function::exported             ae35afef7d4762f2818aee5872c75be0
+internal_function::extension_for        9de8261d69cc93e9b92072b89c89befd
+internal_function::fast_hash            ee5eba48f837fda0fe472645fdd8899a
+internal_function::file::read           e647752332c8e05e81646a3ff98f9a8e
+internal_function::file::write          3e290fdcb353c6f842eb5a40f2e575f8
+internal_function::fnv_hash             c36d56f1e13a60ae427afc43ba025afc
+internal_function::hypothetically       b83e3f894a6df8623ccd370515dfd976
+internal_function::internal::main       f31f2945a19a668d92505f114ab29c78
+internal_function::invoke_editor_on     5eb976796f0ec172d6ec036116a2f41e
+internal_function::is_locked            da12ced6aa38295251f7e748ffd22925
+internal_function::namespace            784d2e96003550681a4ae02b8d6d0a27
+internal_function::parent_attributes    f6ccfaa982ab1a4d066043981aaca277
+internal_function::parent_ordering      57b6da88f76b59f3fed9abfa61280e5e
+internal_function::retrieve             721a6800f328da05047fd7392758f55d
+internal_function::retrieve_with_hooks  0f1b0220ccd973d57a2e96ff00458cf2
+internal_function::select_keys          a5e3532ec6d58151d0ee24416ea1e2b5
+internal_function::separate_options     34ec41a6edaa15adde607a0db3ccfa36
+internal_function::strip                14f490b10ebd519e829d8ae20ea4d536
+internal_function::table_display        d575f4dc873b2e0be5bd7352047fd904
+internal_function::temporary_name       6f548d101fc68356515ffd0fc9ae0c93
+internal_function::translate_backtrace  d77a56d608473b3cd8a3c6cb84185e10
+internal_function::with_exported        df345d5095d5ed13328ddd07ea922b36
+library::shell                          6b9f3befb61a01e9132a440601f8ea0a
+library::terminal                       7e2d045782405934a9614fe04bcfe559
+message_color::cc                       2218ef0f7425de5c717762ffb100eb43
+message_color::state                    03621cd6ac0b1a40d703f41e26c5807f
+message_color::states                   ac66eeeff487b5f43f88a78ea18b3d56
+meta::configure                         69c2e727c124521d074fde21f8bbc4db
+meta::externalize                       aa44e27e0bbee6f0ca4de25d603a1fc7
+meta::functor::editable                 48246c608f363de66511400e00b26164
+meta::type::alias                       889d26d2df385e9ff8e2da7de4e48374
+meta::type::bootstrap                   51108ab2ddb8d966e927c8f62d9ef3e5
+meta::type::cache                       9267171f2eace476f64a1a670eaaf2c7
+meta::type::data                        120e1649a468d3b3fd3fb783b4168499
+meta::type::function                    8ea626198861dc59dd7f303eecb5ff88
+meta::type::hook                        ff92aef328b6bdc6f87ddd0821f3e42f
+meta::type::inc                         78e0375b6725487cb1f0deca41e96bbe
+meta::type::indicator                   feb54a2624e6983617685047c717427f
+meta::type::internal_function           eff3cf31e2635f51c83836f116c99d2f
+meta::type::library                     7622e8d65e03066668bade74715d65ad
+meta::type::message_color               557a1b44979cbf77a7251fbdc4c5b82c
+meta::type::meta                        c6250056816b58a9608dd1b2614246f8
+meta::type::parent                      09d1d03379e4e0b262e06939f4e00464
+meta::type::retriever                   71a29050bf9f20f6c71afddff83addc9
+meta::type::state                       84da7d5220471307f1f990c5057d3319
+retriever::file                         3bbc9d8a887a536044bafff1d54def7e
+retriever::global                       4fe8df0cca548075169968772843a156
+retriever::id                           4da6080168d32445150cc4200af7af6e
+retriever::object                       c7633990b4e01bdc783da7e545799f4f
+retriever::perl                         f41938e6dbad317f62abffc1e4d28cca
+
+__
+meta::parent('preprocessor', <<'__');
+function::preprocess           ab5526a02ff417d4c162357dc327e7c4
+meta::functor::html-templates  2771200f87e9cbfeecfb5f8a0f796f18
+meta::type::template           bc4b0c80b5efc716b19e99b832c22bf3
+parent::object                 1f1bf492b56b2f0196b2018b11b8c991
+retriever::pp                  3b5f5c5d30c5a04f72056dedaacfe7b7
+template::comment              dfe273d2dad3d8159b847545e4e5c309
+template::eval                 1a0e2124a05056be4abc11803883c294
+template::failing_conditional  e3a4523110dd859e828f342185de7c62
+template::include              47b5552d609d97fe7f2522d5c1027014
+template::pinclude             c07ff79bf8d642cceaa9ef844bfcb189
+template::script-include       76be051ad116449ddebd10e7c3729afd
+template::style-include        8e5a06b70e1b00379765f319bf6c8066
+
+__
+meta::retriever('file', '-f $_[0] ? file::read($_[0]) : undef;');
+meta::retriever('global', <<'__');
+# Returns the global data stashed at the end of this perl object
+$_[0] eq 'self' ? $global_data : undef;
+
+__
+meta::retriever('html-sdoc', <<'__');
+my ($attribute) = @_;
+return undef unless $attribute =~ s/^html::/sdoc::/ and exists $data{$attribute};
+sdoc_html($attribute);
+
+__
+meta::retriever('id', '$_[0] =~ /^id::/ ? substr($_[0], 4) : undef;');
+meta::retriever('markdown-sdoc', <<'__');
+my ($attribute) = @_;
+return undef unless $attribute =~ s/^markdown::/sdoc::/ and exists $data{$attribute};
+sdoc_markdown($attribute);
+
+__
+meta::retriever('object', <<'__');
+# Fetch a property from another Perl object. This uses the 'cat' function.
+return undef unless $_[0] =~ /^object::(.*?)::(.*)$/ && -x $1 && qx|$1 is '$2'|;
+join '', qx|$1 cat '$2'|;
+
+__
+meta::retriever('perl', <<'__');
+# Lets you use the result of evaluating some Perl expression
+return undef unless $_[0] =~ /^perl::(.*)$/;
+eval $1;
+
+__
+meta::retriever('pp', <<'__');
+return undef unless namespace($_[0]) eq 'pp';
+my $attr = retrieve(attribute($_[0]));
+defined $attr ? preprocess($attr) : undef;
+__
+meta::retriever('sdoc', 'exists $data{"sdoc::$_[0]"} ? sdoc("sdoc::$_[0]") : undef;');
+meta::retriever('sdocp', <<'__');
+my $attribute = attribute($_[0]);
+exists $data{"sdoc::$attribute"} ? sdocp("sdoc::$attribute") : undef;
+__
+meta::sdoc('waul::parser', <<'__');
 Caterwaul nonlinear parser combinators | Spencer Tipping
 Licensed under the terms of the MIT source code license
 
@@ -1488,7 +1743,7 @@ We then write this rule to find what we're looking for:
 If we run this with nonlinear parsing, we'll get a list of all code paths that end up assigning a variable and then definitely call console.log (barring exceptions). As a nice perk, we'll also
 get the side-effects leading up to those code paths as well as the statements that happened in between the assignment and the log statement.
 
-caterwaul.js_all()(function ($) {
+caterwaul.module('parser', 'js_all', function ($) {
 
 Implementation specifics.
 Unlike some parser combinator implementations, this one provides a way to specify detailed failure information. This gives the user an idea about why and where a parse failed. Also unlike many
@@ -1554,8 +1809,8 @@ directed structures.
     bfc(ps = parsers('bfc', arguments), annotate(result, 'bfc', ps))(states) = ps /[states /!state_matrix][step_matrix_mutable(x)(x0)] /seq /!row_composite_states_from,
 
     state_matrix(states)         = states *[[x]] -seq,
-    step_matrix_mutable(p)(m)    = m *~!r[xs.length === 1 ? r.push(xs[0]) && [r] : xs *~[r + [x]] -seq, where [xs = p /-memo_single/ r[r.length - 1]]] -seq,
-    step_matrix_immutable(p)(m)  = m *~!~r[memo_single(p, r[r.length - 1]) *~[r + [x]]] -seq,
+    step_matrix_mutable(p)(m)    = m *~!r[xs.length === 1 ? r.push(xs[0]) && [r] : xs *[r + [x] -seq] -seq, where [xs = p /-memo_single/ r[r.length - 1]]] -seq,
+    step_matrix_immutable(p)(m)  = m *~!~r[memo_single(p, r[r.length - 1]) *[r + [x] -seq]] -seq,
     row_composite_states_from(m) = m *r[r[r.length - 1].map("r.slice(1, r.length) *[x.value()] -seq".qf)] -seq,
 
   Choice combinators.
@@ -1594,8 +1849,8 @@ directed structures.
 
     optional(p, annotate(result, 'optional', [p]))     = p /-alt/ zero(),
 
-    step_matrix_immutable_null(p)(m) = m *~!r[xs ? xs.length ? xs *~[r + [x]] -seq : [r + [null] -seq] : [r], where [xs = r[r.length - 1] -re [it && p /-memo_single/ it]]] -seq,
-    step_matrix_mutable_null(p)(m)   = m *~!r[xs ? l ? l === 1 ? r.push(xs[0]) && [r] : xs *~[r + [x]] -seq : r.push(null) && [r] : [r],
+    step_matrix_immutable_null(p)(m) = m *~!r[xs ? xs.length ? xs *[r + [x] -seq] -seq : [r + [null] -seq] : [r], where [xs = r[r.length - 1] -re [it && p /-memo_single/ it]]] -seq,
+    step_matrix_mutable_null(p)(m)   = m *~!r[xs ? l ? l === 1 ? r.push(xs[0]) && [r] : xs *[r + [x] -seq] -seq : r.push(null) && [r] : [r],
                                               where [xs = r[r.length - 1] -re [it && p /-memo_single/ it], l = xs && xs.length]] -seq,
 
     has_non_null_states(m)           = m |r[r[r.length - 1]] |seq,
@@ -1776,648 +2031,7 @@ function can be used with other Caterwaul parsers.
 
          annotate(f, name, xs) = f -se [xs                  = xs || [],
                                         it.toString()       = '#{name}(#{xs *[x.toString()] -seq -re- it.join(", ")})',
-                                        it.caterwaul_parser = true]]})(caterwaul);
-
-__
-meta::module('parser-tests', <<'__');
-Introduction.
-These tests might actually fail, as opposed to the REPL tests which are just for show.
-
-caterwaul.js_all()(function ($) {
-
-Driver tests.
-It isn't much use testing the parser stuff until we know that the drivers are solid. Run each driver through a series of operations to make sure it behaves in a reasonable way.
-
-  String driver.
-  This one is pretty simple. It should advance through the string.
-
-  initial.input()                   /-eq/ s         -se-
-  initial.position()                /-eq/ 0         -se-
-  initial.value()                   /-eq/ undefined -se-
-  initial.next(1, 42).length        /-eq/ 1         -se-
-  initial.next(1, 42)[0].input()    /-eq/ s         -se-
-  initial.next(1, 42)[0].position() /-eq/ 1         -se-
-  initial.next(1, 42)[0].value()    /-eq/ 42        -where [s = 'foo', initial = new linear_string_state(s)],
-
-  Structure driver.
-  This one should dig through a structure, ultimately traversing all children. It should work for both arrays and objects.
-
-  initial.input()                   /-eq/ root        -se-
-  initial.position()                /-eq/ undefined   -se-
-  initial.value()                   /-eq/ undefined   -se-
-  initial.next(1, 42).length        /-eq/ 2           -se-
-  initial.next(1, 42)[0].input()    /-eq/ first_child -se-
-  initial.next(1, 42)[0].position() /-eq/ 'c1'        -se-
-  initial.next(1, 42)[0].value()    /-eq/ 42          -se-
-  initial.next(1, 43)[1].input()    /-eq/ other_child -se-
-  initial.next(1, 43)[1].position() /-eq/ 'c2'        -se-
-  initial.next(1, 43)[1].value()    /-eq/ 43          -where [first_child = {}, other_child = {}, root = {c1: first_child, c2: other_child}, initial = new structure_state(root)],
-
-  Array driver.
-  This one ignores non-array-like properties and just goes through the numbered ones. I'm going to use it to test Caterwaul syntax trees.
-
-  initial.input()                   /-eq/ tree       -se-
-  initial.position()                /-eq/ undefined  -se-
-  initial.value()                   /-eq/ undefined  -se-
-  initial.next(1, 42).constructor   /-eq/ Array      -se-
-  initial.next(1, 42).length        /-eq/ 2          -se-
-  initial.next(1, 42)[0].input()    /-eq/ left_node  -se-
-  initial.next(1, 42)[0].position() /-eq/ 0          -se-
-  initial.next(1, 42)[0].value()    /-eq/ 42         -se-
-  initial.next(1, 43)[1].input()    /-eq/ right_node -se-
-  initial.next(1, 43)[1].position() /-eq/ 1          -se-
-  initial.next(1, 43)[1].value()    /-eq/ 43         -where [tree = '3 + 4 * 5'.qs, left_node = tree[0], right_node = tree[1], initial = new array_state(tree)],
-
-Traversal tests.
-These make sure that the various traversal combinators do what they're supposed to. This is subtle because a part of the behavior has to do with how eagerly they evaluate things.
-
-  Breadth-first search combinators.
-  This code tests bfs() and bfc(), which combine parsers in a breadth-first way (see the parser source documentation for specifics).
-
-  any2([initial]).length        /-eq/ 2     -se-
-  any2([initial])[0].position() /-eq/ 0     -se-
-  any2([initial])[0].input()    /-eq/ left  -se-
-  any2([initial])[0].value()    /-eq/ left  -se-
-  any2([initial])[1].position() /-eq/ 1     -se-
-  any2([initial])[1].input()    /-eq/ right -se-
-  any2([initial])[1].value()    /-eq/ right -se-
-
-  any3([initial]).length        /-eq/ 2        -se-
-  any3([initial])[0].position() /-eq/ 0        -se-
-  any3([initial])[0].input()    /-eq/ right[0] -se-
-  any3([initial])[0].value()    /-eq/ right[0] -se-
-  any3([initial])[1].position() /-eq/ 1        -se-
-  any3([initial])[1].input()    /-eq/ right[1] -se-
-  any3([initial])[1].value()    /-eq/ right[1] -se-
-
-  any2c([initial]).length            /-eq/ 2     -se-
-  any2c([initial])[0].position()     /-eq/ 0     -se-
-  any2c([initial])[0].input()        /-eq/ left  -se-
-  any2c([initial])[0].value().length /-eq/ 2     -se-
-  any2c([initial])[0].value()[0]     /-eq/ tree  -se-
-  any2c([initial])[0].value()[1]     /-eq/ left  -se-
-  any2c([initial])[1].position()     /-eq/ 1     -se-
-  any2c([initial])[1].input()        /-eq/ right -se-
-  any2c([initial])[1].value().length /-eq/ 2     -se-
-  any2c([initial])[1].value()[0]     /-eq/ tree  -se-
-  any2c([initial])[1].value()[1]     /-eq/ right -se-
-
-  any3c([initial]).length            /-eq/ 2        -se-
-  any3c([initial])[0].position()     /-eq/ 0        -se-
-  any3c([initial])[0].input()        /-eq/ right[0] -se-
-  any3c([initial])[0].value().length /-eq/ 3        -se-
-  any3c([initial])[0].value()[0]     /-eq/ tree     -se-
-  any3c([initial])[0].value()[1]     /-eq/ right    -se-
-  any3c([initial])[0].value()[2]     /-eq/ right[0] -se-
-  any3c([initial])[1].position()     /-eq/ 1        -se-
-  any3c([initial])[1].input()        /-eq/ right[1] -se-
-  any3c([initial])[1].value().length /-eq/ 3        -se-
-  any3c([initial])[1].value()[0]     /-eq/ tree     -se-
-  any3c([initial])[1].value()[1]     /-eq/ right    -se-
-  any3c([initial])[1].value()[2]     /-eq/ right[1] -se-
-
-  Alternation combinators.
-  This code checks the behavior of alt() and all().
-
-  (op /-bfs/ id)([initial]).length     /-eq/ 2     -se-
-  (op /-bfs/ id)([initial])[0].value() /-eq/ left  -se-
-  (op /-bfs/ id)([initial])[1].value() /-eq/ right -se-
-  (num /-bfs/ id)([initial]).length    /-eq/ 0     -se-
-  op_or_num([initial]).length          /-eq/ 2     -se-
-  op_or_num([initial])[0].value()      /-eq/ left  -se-
-  op_or_num([initial])[1].value()      /-eq/ right -se-
-
-  op_then_either([initial]).length     /-eq/ 2        -se-
-  op_then_either([initial])[0].value() /-eq/ right[0] -se-
-  op_then_either([initial])[1].value() /-eq/ right[1] -se-
-
-  op_then_maybe_either([initial]).length     /-eq/ 3        -se-
-  op_then_maybe_either([initial])[0].value() /-eq/ left     -se-
-  op_then_maybe_either([initial])[1].value() /-eq/ right[0] -se-
-  op_then_maybe_either([initial])[2].value() /-eq/ right[1] -se-
-
-  op_then_maybe_either_all([initial]).length     /-eq/ 4        -se-
-  op_then_maybe_either_all([initial])[0].value() /-eq/ left     -se-
-  op_then_maybe_either_all([initial])[1].value() /-eq/ right[0] -se-
-  op_then_maybe_either_all([initial])[2].value() /-eq/ right[1] -se-
-  op_then_maybe_either_all([initial])[3].value() /-eq/ right
-
-  -where [tree = '3 + 4 * 5'.qs, left = tree[0], right = tree[1], initial = new array_state(tree),
-          any(states) = states                              *~![x.next(1, x.input())] -seq, any = annotate(any, 'any', []),
-          op(states)  = states %[/\W/.test(x.input().data)] *~![x.next(1, x.input())] -seq, op  = annotate(op,  'op',  []),
-          num(states) = states %[/\d/.test(x.input().data)] *~![x.next(1, x.input())] -seq, num = annotate(num, 'num', []),
-
-          id = iv("_".qf),
-
-          op_or_num = op /-alt/ num /-bfs/ id,
-
-          op_then_either           = op /-bfs/ op_or_num,
-          op_then_maybe_either     = op /-bfs/ (op_or_num /-alt/ id),
-          op_then_maybe_either_all = op /-bfs/ (op_or_num /-all/ id),
-
-          any2  = any /-bfs/ iv("_".qf), any3  = any /any /-bfs/id,
-          any2c = any /-bfc/ iv("_".qf), any3c = any /any /-bfc/id],
-
-  using [caterwaul.parser],
-
-  where [eq(x, y) = x === y || null['#{x} should === #{y}']]})(caterwaul);
-
-__
-meta::parent('/home/spencertipping/bin/caterwaul-extension.html', <<'__');
-function::module                                            cd75ead8fad4b21dd5e29bc85a2de334
-function::modules                                           e3b6934465aed29eebaa08eef3be15fd
-function::render                                            41e9d01f7b705950c999151c13224573
-function::render-min                                        cb3f9c66145044d3f4c054db0911504b
-function::repl                                              878e54fa550b881619f987a9d676038b
-function::test                                              af8715c7a61b18bfe7d0e2e72469dfea
-meta::type::module                                          4dd84ea154141e3559df4bb6612393c1
-parent::/home/spencertipping/bin/repository                 c9d4572a563910ccc4e3defd9fa638f8
-parent::/home/spencertipping/conjectures/perl-objects/js    a7e83594e1d17b121d4e566bc2d6c18d
-parent::/home/spencertipping/conjectures/perl-objects/sdoc  739656777fc0bcad0d9b72d77c4302bc
-parent::preprocessor                                        7172206e753310217b5f67ac8366c8bf
-sdoc::html::test                                            69631229b55eddc4f7402badb13f4fe1
-sdoc::js::console                                           6b315e3398a0669509f353a260f11716
-sdoc::js::dependencies                                      f98fdf7af0dc93d98f0392aff155c9cf
-sdoc::js::modules                                           2ff90d3bfe72d95e62d6bbfc4e99273c
-sdoc::js::repl                                              b194397d2c44e51527d58f22ae48b43f
-sdoc::js::test                                              eea2d2f5909703e105fe1373ea4b1757
-sdoc::js::test-setup                                        c8b68de30eece1fcbace6add858c76eb
-
-__
-meta::parent('/home/spencertipping/bin/configuration', <<'__');
-meta::type::configuration                7f5ba514d47ac29a3c226d0e331d9da4
-parent::/home/spencertipping/bin/object  7374722eec54c39ab752e3fb032c1886
-
-__
-meta::parent('/home/spencertipping/bin/object', <<'__');
-bootstrap::html                         f44dd03cb0c904b3a5f69fbda5f018d0
-bootstrap::initialization               1cf74e7209f32722a79b6e49e3907fd3
-bootstrap::perldoc                      5793df44bdd2526bb461272924abfd4b
-function::ad                            77a05d9a6fef7871b2c3e8e94b56870a
-function::alias                         8eeeeb4e064ef3aba7edf8f254427bc2
-function::cat                           f684de6c8776617a437b76009114f52e
-function::cc                            12ea9176e388400704d823433c209b7a
-function::ccc                           d151a9793edd83f80fb880b7f0ab9b34
-function::child                         f5764adf0b4e892f147a9b6b68d4816f
-function::clone                         bb42e04e10a8e54e88786b6fbc4fb213
-function::cp                            3fe69d1b58d90045ad520048977538c4
-function::create                        3010d55f4dfa59a998742e07823ed54d
-function::current-state                 6f03f86f1901e9ef07fdb5d4079a914c
-function::disable                       53b449708cc2ffdefa352e53bb7d847d
-function::edit                          9ce5ba1ae4607e8cf1975080bcde1cf4
-function::enable                        7de1cedc36841f5de8f9fdfbc3b65097
-function::export                        2374cd1dbf7616cb38cafba4e171075d
-function::extern                        1290a5223e2824763eecfb3a54961eff
-function::grep                          55c3cea8ff4ec2403be2a9d948e59f14
-function::hash                          6ee131d093e95b80039b4df9c7c84a02
-function::hook                          675cdb98b5dd8567bdd5a02ead6184b5
-function::hooks                         3d989899c616f7440429a2d9bf1cc44b
-function::identity                      6523885762fcc2f354fc25cf6ed126ce
-function::import                        5d0f0634cbd01274f2237717507198a2
-function::initial-state                 03d8ed608855a723124e79ca184d8e73
-function::is                            41564c8f21b12ab80824ac825266d805
-function::load-state                    b6cf278a1f351f316fa6e070359b6081
-function::lock                          5d8db258704e6a8623fac796f62fac02
-function::ls                            01a23d51d5b529e03943bd57e33f92df
-function::mv                            4a0e338a6edb89ad1e2c779d51d4d47b
-function::name                          955ba2d1fe1d67cd78651a4042283b00
-function::parents                       3da9e63b5aae9e2f5dcc946a86d166aa
-function::perl                          a0f341ea54391b63b6195e7992b6a686
-function::rd                            eea4e1cdd9133abb985205ae5daf5f15
-function::reload                        1589f4cf8374e0011991cb8907afca3e
-function::rm                            6f6fd7a6c25558eb469d78ea888f8551
-function::rmparent                      49051d669554867f87c08656380a8aba
-function::save                          778c0e1043b9c6c96fb8f266f8061624
-function::save-state                    5af59ebc4ad8965767e4dc106d3b557e
-function::serialize                     a19ada2d2558ea9da3a7942fb913e15f
-function::serialize-single              aa77af032272f5a2664e21713739a223
-function::sh                            1b2f542ca9dd63ad437058b7f6f61aac
-function::shb                           7b2685a4041c25bc495816e472bdace5
-function::shell                         a87f389b94713e5855e62241d649d01d
-function::size                          8d4bd7a84ece556717f8ba3bf258d33c
-function::snapshot                      56939a47f2758421669641e15ebd66eb
-function::state                         8c68044dccae28f33244d0c7e9e9acfb
-function::touch                         3991b1b7c7187566f50e5e58ce01fa06
-function::unlock                        b4aac02f7f3fb700acf4acfd9b180ceb
-function::update                        ac391dc90e507e7586c81850e7c2ecdd
-function::update-from                   631721c4dc30e11b2023a6703cbcef52
-function::usage                         5bdd370f5a56cfbf199e08d398091444
-function::verify                        0c0cc1dfeab7d705919df122f7850a4f
-indicator::cc                           3db7509c521ee6abfedd33d5f0148ed3
-indicator::locked                       fc2b4f4ca0d6a334b9ac423d06c8f18c
-indicator::path                         8a9685787cda6af8f63594f6dcde7582
-internal_function::around_hook          7cc876e7c5f78c34654337fc95255587
-internal_function::associate            05a75afb70daee635eefec8ae037f593
-internal_function::attribute            dd6f010f9688977464783f60f5b6d3dd
-internal_function::attribute_is         a145549f6ce44abbcf66308b426d30ec
-internal_function::cache                eb9da45580a9ac0882baf98acd2ecd60
-internal_function::chmod_self           2035e861eedab55ba0a9f6f5a068ca70
-internal_function::dangerous            46c4baaa214ab3d05af43e28083d5141
-internal_function::debug_trace          0faf9d9f4159d72dfe4481f6f3607ce1
-internal_function::execute              f0924e087d978ff2ab1e117124db3042
-internal_function::exported             3ec48f01deefa840b52111f2e3f34749
-internal_function::extension_for        9de8261d69cc93e9b92072b89c89befd
-internal_function::fast_hash            ee5eba48f837fda0fe472645fdd8899a
-internal_function::file::read           e647752332c8e05e81646a3ff98f9a8e
-internal_function::file::write          3e290fdcb353c6f842eb5a40f2e575f8
-internal_function::fnv_hash             c36d56f1e13a60ae427afc43ba025afc
-internal_function::hypothetically       b83e3f894a6df8623ccd370515dfd976
-internal_function::internal::main       f31f2945a19a668d92505f114ab29c78
-internal_function::invoke_editor_on     5eb976796f0ec172d6ec036116a2f41e
-internal_function::is_locked            da12ced6aa38295251f7e748ffd22925
-internal_function::namespace            784d2e96003550681a4ae02b8d6d0a27
-internal_function::parent_attributes    f6ccfaa982ab1a4d066043981aaca277
-internal_function::parent_ordering      57b6da88f76b59f3fed9abfa61280e5e
-internal_function::retrieve             8a34d1fe047fe1b40c3d2957c4a789eb
-internal_function::retrieve_with_hooks  0f1b0220ccd973d57a2e96ff00458cf2
-internal_function::select_keys          a5e3532ec6d58151d0ee24416ea1e2b5
-internal_function::separate_options     34ec41a6edaa15adde607a0db3ccfa36
-internal_function::strip                14f490b10ebd519e829d8ae20ea4d536
-internal_function::table_display        d575f4dc873b2e0be5bd7352047fd904
-internal_function::temporary_name       6f548d101fc68356515ffd0fc9ae0c93
-internal_function::translate_backtrace  d77a56d608473b3cd8a3c6cb84185e10
-internal_function::with_exported        df345d5095d5ed13328ddd07ea922b36
-library::shell                          6b9f3befb61a01e9132a440601f8ea0a
-library::terminal                       7e2d045782405934a9614fe04bcfe559
-message_color::cc                       2218ef0f7425de5c717762ffb100eb43
-message_color::state                    03621cd6ac0b1a40d703f41e26c5807f
-message_color::states                   ac66eeeff487b5f43f88a78ea18b3d56
-meta::configure                         69c2e727c124521d074fde21f8bbc4db
-meta::externalize                       aa44e27e0bbee6f0ca4de25d603a1fc7
-meta::functor::editable                 48246c608f363de66511400e00b26164
-meta::type::alias                       889d26d2df385e9ff8e2da7de4e48374
-meta::type::bootstrap                   51108ab2ddb8d966e927c8f62d9ef3e5
-meta::type::cache                       9267171f2eace476f64a1a670eaaf2c7
-meta::type::data                        120e1649a468d3b3fd3fb783b4168499
-meta::type::function                    8ea626198861dc59dd7f303eecb5ff88
-meta::type::hook                        ff92aef328b6bdc6f87ddd0821f3e42f
-meta::type::inc                         78e0375b6725487cb1f0deca41e96bbe
-meta::type::indicator                   feb54a2624e6983617685047c717427f
-meta::type::internal_function           eff3cf31e2635f51c83836f116c99d2f
-meta::type::library                     7622e8d65e03066668bade74715d65ad
-meta::type::message_color               557a1b44979cbf77a7251fbdc4c5b82c
-meta::type::meta                        c6250056816b58a9608dd1b2614246f8
-meta::type::parent                      09d1d03379e4e0b262e06939f4e00464
-meta::type::retriever                   71a29050bf9f20f6c71afddff83addc9
-meta::type::state                       84da7d5220471307f1f990c5057d3319
-retriever::file                         3bbc9d8a887a536044bafff1d54def7e
-retriever::id                           4da6080168d32445150cc4200af7af6e
-retriever::object                       c7633990b4e01bdc783da7e545799f4f
-retriever::perl                         f41938e6dbad317f62abffc1e4d28cca
-
-__
-meta::parent('/home/spencertipping/bin/repository', <<'__');
-function::dupdate                               3203750417390913ae3892002b53bdc1
-meta::type::cached_dependency                   b9dc0b20c2d3af0deb3b835b20cac4a7
-parent::/home/spencertipping/bin/configuration  99a1d31e9e499afe6e49a7e9bb2787b2
-retriever::http                                 a23617a5787de41d1a89ad4496cacce3
-
-__
-meta::parent('/home/spencertipping/conjectures/perl-objects/js', <<'__');
-meta::type::js                           0377fcc438f3af85ec87d4770b8cd307
-parent::/home/spencertipping/bin/object  7374722eec54c39ab752e3fb032c1886
-
-__
-meta::parent('/home/spencertipping/conjectures/perl-objects/sdoc', <<'__');
-function::sdoc                           c681cb2a062f2073e9756779450d94bf
-function::sdoc-html                      7e7de47fe059a336309a4a0c06856401
-function::sdocp                          c3d738d982ba87418a298ff58478a85b
-meta::type::sdoc                         22cd7315641d38c9d536344e83c36bed
-meta::type::slibrary                     95474943c4a5f8ff17d3cf66ddb7c386
-parent::/home/spencertipping/bin/object  7374722eec54c39ab752e3fb032c1886
-retriever::html-sdoc                     2a5d5aa45e2d7576f79e045177d8705c
-retriever::sdoc                          662061e9e41491e2a1debd6862ccf1e7
-retriever::sdocp                         330694ea14a23bb04b65c761075cd946
-
-__
-meta::parent('caterwaul-extension.html', <<'__');
-function::module                                            b457af4710c9e757c4d26cd7ccea48b1
-function::modules                                           e3b6934465aed29eebaa08eef3be15fd
-function::render                                            41e9d01f7b705950c999151c13224573
-function::repl                                              878e54fa550b881619f987a9d676038b
-function::test                                              af8715c7a61b18bfe7d0e2e72469dfea
-meta::type::module                                          4dd84ea154141e3559df4bb6612393c1
-parent::/home/spencertipping/bin/repository                 c9d4572a563910ccc4e3defd9fa638f8
-parent::/home/spencertipping/conjectures/perl-objects/js    a7e83594e1d17b121d4e566bc2d6c18d
-parent::/home/spencertipping/conjectures/perl-objects/sdoc  739656777fc0bcad0d9b72d77c4302bc
-parent::preprocessor                                        7172206e753310217b5f67ac8366c8bf
-sdoc::html::test                                            69631229b55eddc4f7402badb13f4fe1
-sdoc::js::console                                           6b315e3398a0669509f353a260f11716
-sdoc::js::dependencies                                      f98fdf7af0dc93d98f0392aff155c9cf
-sdoc::js::modules                                           2ff90d3bfe72d95e62d6bbfc4e99273c
-sdoc::js::repl                                              b194397d2c44e51527d58f22ae48b43f
-sdoc::js::test                                              eea2d2f5909703e105fe1373ea4b1757
-sdoc::js::test-setup                                        c8b68de30eece1fcbace6add858c76eb
-
-__
-meta::parent('git-integration', <<'__');
-function::gU                             f15ab8170ea981dd7b216c75af5d3f63
-function::ga                             505b3d9a22ca7cf04c60bda01ff3f140
-function::gc                             0378d3a25fad4fa0feff9cb50c0c5d89
-function::gd                             cff1e868c7c69780a2263c8c7fd75f90
-function::gl                             492e2750409588f8b61a8b8e339e42c1
-function::gs                             4ea8aeccb36ab83702062e4359e8600b
-function::gu                             fdd2e61e0ea981dda6d407df63c0e47e
-parent::/home/spencertipping/bin/object  7374722eec54c39ab752e3fb032c1886
-
-__
-meta::parent('object', <<'__');
-bootstrap::html                         f44dd03cb0c904b3a5f69fbda5f018d0
-bootstrap::initialization               1cf74e7209f32722a79b6e49e3907fd3
-bootstrap::perldoc                      5793df44bdd2526bb461272924abfd4b
-function::ad                            77a05d9a6fef7871b2c3e8e94b56870a
-function::alias                         8eeeeb4e064ef3aba7edf8f254427bc2
-function::cat                           f684de6c8776617a437b76009114f52e
-function::cc                            12ea9176e388400704d823433c209b7a
-function::ccc                           d151a9793edd83f80fb880b7f0ab9b34
-function::child                         f5764adf0b4e892f147a9b6b68d4816f
-function::clone                         bb42e04e10a8e54e88786b6fbc4fb213
-function::cp                            3fe69d1b58d90045ad520048977538c4
-function::create                        3010d55f4dfa59a998742e07823ed54d
-function::current-state                 6f03f86f1901e9ef07fdb5d4079a914c
-function::disable                       53b449708cc2ffdefa352e53bb7d847d
-function::edit                          9ce5ba1ae4607e8cf1975080bcde1cf4
-function::enable                        7de1cedc36841f5de8f9fdfbc3b65097
-function::export                        2374cd1dbf7616cb38cafba4e171075d
-function::extern                        1290a5223e2824763eecfb3a54961eff
-function::grep                          55c3cea8ff4ec2403be2a9d948e59f14
-function::hash                          6ee131d093e95b80039b4df9c7c84a02
-function::hook                          675cdb98b5dd8567bdd5a02ead6184b5
-function::hooks                         3d989899c616f7440429a2d9bf1cc44b
-function::identity                      6523885762fcc2f354fc25cf6ed126ce
-function::import                        5d0f0634cbd01274f2237717507198a2
-function::initial-state                 03d8ed608855a723124e79ca184d8e73
-function::is                            41564c8f21b12ab80824ac825266d805
-function::load-state                    b6cf278a1f351f316fa6e070359b6081
-function::lock                          5d8db258704e6a8623fac796f62fac02
-function::ls                            01a23d51d5b529e03943bd57e33f92df
-function::mv                            4a0e338a6edb89ad1e2c779d51d4d47b
-function::name                          955ba2d1fe1d67cd78651a4042283b00
-function::parents                       3da9e63b5aae9e2f5dcc946a86d166aa
-function::perl                          a0f341ea54391b63b6195e7992b6a686
-function::rd                            eea4e1cdd9133abb985205ae5daf5f15
-function::reload                        1589f4cf8374e0011991cb8907afca3e
-function::rm                            6f6fd7a6c25558eb469d78ea888f8551
-function::save                          778c0e1043b9c6c96fb8f266f8061624
-function::save-state                    5af59ebc4ad8965767e4dc106d3b557e
-function::serialize                     a19ada2d2558ea9da3a7942fb913e15f
-function::serialize-single              aa77af032272f5a2664e21713739a223
-function::sh                            1b2f542ca9dd63ad437058b7f6f61aac
-function::shb                           7b2685a4041c25bc495816e472bdace5
-function::shell                         a87f389b94713e5855e62241d649d01d
-function::size                          8d4bd7a84ece556717f8ba3bf258d33c
-function::snapshot                      56939a47f2758421669641e15ebd66eb
-function::state                         8c68044dccae28f33244d0c7e9e9acfb
-function::touch                         3991b1b7c7187566f50e5e58ce01fa06
-function::unlock                        b4aac02f7f3fb700acf4acfd9b180ceb
-function::update                        ac391dc90e507e7586c81850e7c2ecdd
-function::update-from                   631721c4dc30e11b2023a6703cbcef52
-function::usage                         5bdd370f5a56cfbf199e08d398091444
-function::verify                        0c0cc1dfeab7d705919df122f7850a4f
-indicator::cc                           3db7509c521ee6abfedd33d5f0148ed3
-indicator::locked                       fc2b4f4ca0d6a334b9ac423d06c8f18c
-indicator::path                         8a9685787cda6af8f63594f6dcde7582
-internal_function::around_hook          7cc876e7c5f78c34654337fc95255587
-internal_function::associate            05a75afb70daee635eefec8ae037f593
-internal_function::attribute            dd6f010f9688977464783f60f5b6d3dd
-internal_function::attribute_is         a145549f6ce44abbcf66308b426d30ec
-internal_function::cache                eb9da45580a9ac0882baf98acd2ecd60
-internal_function::chmod_self           2035e861eedab55ba0a9f6f5a068ca70
-internal_function::dangerous            46c4baaa214ab3d05af43e28083d5141
-internal_function::debug_trace          0faf9d9f4159d72dfe4481f6f3607ce1
-internal_function::execute              f0924e087d978ff2ab1e117124db3042
-internal_function::exported             3ec48f01deefa840b52111f2e3f34749
-internal_function::extension_for        9de8261d69cc93e9b92072b89c89befd
-internal_function::fast_hash            ee5eba48f837fda0fe472645fdd8899a
-internal_function::file::read           e647752332c8e05e81646a3ff98f9a8e
-internal_function::file::write          3e290fdcb353c6f842eb5a40f2e575f8
-internal_function::fnv_hash             c36d56f1e13a60ae427afc43ba025afc
-internal_function::hypothetically       b83e3f894a6df8623ccd370515dfd976
-internal_function::internal::main       f31f2945a19a668d92505f114ab29c78
-internal_function::invoke_editor_on     5eb976796f0ec172d6ec036116a2f41e
-internal_function::is_locked            da12ced6aa38295251f7e748ffd22925
-internal_function::namespace            784d2e96003550681a4ae02b8d6d0a27
-internal_function::parent_attributes    f6ccfaa982ab1a4d066043981aaca277
-internal_function::parent_ordering      57b6da88f76b59f3fed9abfa61280e5e
-internal_function::retrieve             8a34d1fe047fe1b40c3d2957c4a789eb
-internal_function::retrieve_with_hooks  0f1b0220ccd973d57a2e96ff00458cf2
-internal_function::select_keys          a5e3532ec6d58151d0ee24416ea1e2b5
-internal_function::separate_options     34ec41a6edaa15adde607a0db3ccfa36
-internal_function::strip                14f490b10ebd519e829d8ae20ea4d536
-internal_function::table_display        d575f4dc873b2e0be5bd7352047fd904
-internal_function::temporary_name       6f548d101fc68356515ffd0fc9ae0c93
-internal_function::translate_backtrace  d77a56d608473b3cd8a3c6cb84185e10
-internal_function::with_exported        df345d5095d5ed13328ddd07ea922b36
-library::shell                          6b9f3befb61a01e9132a440601f8ea0a
-library::terminal                       7e2d045782405934a9614fe04bcfe559
-message_color::cc                       2218ef0f7425de5c717762ffb100eb43
-message_color::state                    03621cd6ac0b1a40d703f41e26c5807f
-message_color::states                   ac66eeeff487b5f43f88a78ea18b3d56
-meta::configure                         69c2e727c124521d074fde21f8bbc4db
-meta::externalize                       aa44e27e0bbee6f0ca4de25d603a1fc7
-meta::functor::editable                 48246c608f363de66511400e00b26164
-meta::type::alias                       889d26d2df385e9ff8e2da7de4e48374
-meta::type::bootstrap                   51108ab2ddb8d966e927c8f62d9ef3e5
-meta::type::cache                       9267171f2eace476f64a1a670eaaf2c7
-meta::type::data                        120e1649a468d3b3fd3fb783b4168499
-meta::type::function                    8ea626198861dc59dd7f303eecb5ff88
-meta::type::hook                        ff92aef328b6bdc6f87ddd0821f3e42f
-meta::type::inc                         78e0375b6725487cb1f0deca41e96bbe
-meta::type::indicator                   feb54a2624e6983617685047c717427f
-meta::type::internal_function           eff3cf31e2635f51c83836f116c99d2f
-meta::type::library                     7622e8d65e03066668bade74715d65ad
-meta::type::message_color               557a1b44979cbf77a7251fbdc4c5b82c
-meta::type::meta                        c6250056816b58a9608dd1b2614246f8
-meta::type::parent                      09d1d03379e4e0b262e06939f4e00464
-meta::type::retriever                   71a29050bf9f20f6c71afddff83addc9
-meta::type::state                       84da7d5220471307f1f990c5057d3319
-retriever::file                         3bbc9d8a887a536044bafff1d54def7e
-retriever::id                           4da6080168d32445150cc4200af7af6e
-retriever::object                       c7633990b4e01bdc783da7e545799f4f
-retriever::perl                         f41938e6dbad317f62abffc1e4d28cca
-
-__
-meta::parent('preprocessor', <<'__');
-function::preprocess           ab5526a02ff417d4c162357dc327e7c4
-meta::functor::html-templates  2771200f87e9cbfeecfb5f8a0f796f18
-meta::type::template           bc4b0c80b5efc716b19e99b832c22bf3
-parent::object                 7374722eec54c39ab752e3fb032c1886
-retriever::pp                  3b5f5c5d30c5a04f72056dedaacfe7b7
-template::comment              dfe273d2dad3d8159b847545e4e5c309
-template::eval                 1a0e2124a05056be4abc11803883c294
-template::failing_conditional  e3a4523110dd859e828f342185de7c62
-template::include              47b5552d609d97fe7f2522d5c1027014
-template::pinclude             c07ff79bf8d642cceaa9ef844bfcb189
-template::script-include       76be051ad116449ddebd10e7c3729afd
-template::style-include        8e5a06b70e1b00379765f319bf6c8066
-
-__
-meta::retriever('file', '-f $_[0] ? file::read($_[0]) : undef;');
-meta::retriever('html-sdoc', <<'__');
-my ($attribute) = @_;
-return undef unless $attribute =~ s/^html::/sdoc::/ and exists $data{$attribute};
-sdoc_html($attribute);
-
-__
-meta::retriever('http', <<'__');
-use LWP::Simple ();
-return undef unless $_[0] =~ /^(?:http:)?\/\/(\w+.*)$/;
-LWP::Simple::get("http://$1");
-
-__
-meta::retriever('id', '$_[0] =~ /^id::/ ? substr($_[0], 4) : undef;');
-meta::retriever('object', <<'__');
-# Fetch a property from another Perl object. This uses the 'cat' function.
-return undef unless $_[0] =~ /^object::(.*?)::(.*)$/ && -x $1 && qx|$1 is '$2'|;
-join '', qx|$1 cat '$2'|;
-
-__
-meta::retriever('perl', <<'__');
-# Lets you use the result of evaluating some Perl expression
-return undef unless $_[0] =~ /^perl::(.*)$/;
-eval $1;
-
-__
-meta::retriever('pp', <<'__');
-return undef unless namespace($_[0]) eq 'pp';
-my $attr = retrieve(attribute($_[0]));
-defined $attr ? preprocess($attr) : undef;
-__
-meta::retriever('sdoc', 'exists $data{"sdoc::$_[0]"} ? sdoc("sdoc::$_[0]") : undef;');
-meta::retriever('sdocp', <<'__');
-my $attribute = attribute($_[0]);
-exists $data{"sdoc::$attribute"} ? sdocp("sdoc::$attribute") : undef;
-__
-meta::sdoc('html::test', <<'__');
-<!doctype html>
-- html << end
-  - head << end
-    - script src='http://ajax.googleapis.com/ajax/libs/jquery/1.6.2/jquery.js'
-
-    - script << end
-      - pinclude pp::js::dependencies
-      - pinclude pp::js::modules
-
-      var t = function () {$('body').append($('<div>').text(Array.prototype.join.call(arguments, ', ') + ' -> ' + test_case.apply(this, arguments)))};
-
-      $(function () {
-        - pinclude pp::js::test
-      });
-    - end
-
-    - style << end
-      body > div {font-family: monospace}
-    - end
-  - end
-  - body << end
-  - end
-- end
-
-__
-meta::sdoc('js::console', <<'__');
-Console-based testing.
-This color-codes the test output depending on error status.
-
-var t = function () {try       {console.log(Array.prototype.join.call(arguments, ', ') + ' \033[1;32m' + test_case.apply(this, arguments) + '\033[0;0m')}
-                     catch (e) {console.log(Array.prototype.join.call(arguments, ', ') + ' \033[1;31m' + e                                + '\033[0;0m')}};
-
-__
-meta::sdoc('js::dependencies', <<'__');
-Module dependencies.
-Usually this is just Caterwaul and the standard extension. If you modify these, you should probably also run 'dependencies edit' to inform the script about where these files are downloaded
-from.
-
-- include cached_dependency::caterwaul.js
-- include cached_dependency::caterwaul.std.js
-- include cached_dependency::regexp.js
-
-__
-meta::sdoc('js::modules', <<'__');
-Module loading code.
-This is where your modules get loaded into the REPL. This script is included by sdoc::js::repl and is used to render into HTML for cross-browser testing.
-
-- include perl::sdoc('module::parser')
-
-__
-meta::sdoc('js::repl', <<'__');
-Unit tests.
-These are run automatically prior to starting the REPL.
-
-- pinclude pp::js::test-setup
-
-REPL driver.
-This enters the node.js REPL and lets you experiment with your extension.
-
-require('repl').start('caterwaul> ').context.caterwaul = caterwaul;
-
-__
-meta::sdoc('js::test', <<'__');
-Unit tests.
-These are quick, visible assertions to make sure that the setup works properly. The test_case function is called automatically by t(), which is customized to work on whatever platform you're
-running under (e.g. node.js or a browser).
-
-- include perl::sdoc('module::parser-tests')
-
-caterwaul.js_all()(function () {
-  parsers = [],
-  inputs  = [],
-
-  test_case(input) = inputs.push(input) -re-
-                     parsers[parsers.length - 1](input) /se [it && it.length || raise [new Error('parse #{parsers.length} failed: #{input}')]],
-
-  p(parser, input) = parsers.push(parser) -re- t(input),
-
-  linear_string('foo')                                                              /-p/ [new linear_string_state('foo')],
-  linear_regexp(/foo/)                                                              /-p/ [new linear_string_state('foo')],
-  linear_regexp(/foo/)   /-bfs/linear_regexp(/bar/)                                 /-p/ [new linear_string_state('foobar')],
-  linear_regexp(/foo/)   /     linear_regexp(/bar/) /-bfs/linear_string_state.end() /-p/ [new linear_string_state('foobar')],
-  linear_regexp(/foo/)   /-bfc/linear_regexp(/bar/)                                 /-p/ [new linear_string_state('foobar')],
-  linear_regexp(/foo/)   /     linear_regexp(/bar/) /-bfs/linear_string_state.end() /-p/ [new linear_string_state('foobar')],
-
-  linear_regexp(/[^u]+/) / linear_regexp(/\w+/) /-bfc/linear_string_state.end() /-p/ [new linear_string_state('fubared')],
-  linear_regexp(/[^b]+/) / linear_regexp(/\w+/) /-bfc/linear_string_state.end() /-p/ [new linear_string_state('fubared')],
-  linear_regexp(/[^a]+/) / linear_regexp(/\w+/) /-bfc/linear_string_state.end() /-p/ [new linear_string_state('fubared')],
-  linear_regexp(/[^r]+/) / linear_regexp(/\w+/) /-bfc/linear_string_state.end() /-p/ [new linear_string_state('fubared')],
-  linear_regexp(/[^e]+/) / linear_regexp(/\w+/) /-bfc/linear_string_state.end() /-p/ [new linear_string_state('fubared')],
-
-  linear_regexp(/[^u]+/) / linear_regexp(/\w+/) /-bfs/linear_string_state.end() /-p/ [new linear_string_state('fubared')],
-  linear_regexp(/[^b]+/) / linear_regexp(/\w+/) /-bfs/linear_string_state.end() /-p/ [new linear_string_state('fubared')],
-  linear_regexp(/[^a]+/) / linear_regexp(/\w+/) /-bfs/linear_string_state.end() /-p/ [new linear_string_state('fubared')],
-  linear_regexp(/[^r]+/) / linear_regexp(/\w+/) /-bfs/linear_string_state.end() /-p/ [new linear_string_state('fubared')],
-  linear_regexp(/[^e]+/) / linear_regexp(/\w+/) /-bfs/linear_string_state.end() /-p/ [new linear_string_state('fubared')],
-
-  many(linear_regexp(/f/), bfc) / linear_regexp(/oo/) /-bfc/linear_string_state.end() /-p/ [new linear_string_state('foo')],
-  many(linear_regexp(/f/), bfc) / linear_regexp(/oo/) /-bfc/linear_string_state.end() /-p/ [new linear_string_state('ffoo')],
-  many(linear_regexp(/f/), bfc) / linear_regexp(/oo/) /-bfc/linear_string_state.end() /-p/ [new linear_string_state('fffoo')],
-  many(linear_regexp(/f/), bfc) / linear_regexp(/oo/) /-bfc/linear_string_state.end() /-p/ [new linear_string_state('fffffffffffoo')],
-
-  linear_regexp(/f/) /!manyc /-map/ "_.join('')".qf / linear_regexp(/oo/) /-bfc/linear_string_state.end() /-p/ [new linear_string_state('oo')],
-  linear_regexp(/f/) /!manyc /-map/ "_.join('')".qf / linear_regexp(/oo/) /-bfc/linear_string_state.end() /-p/ [new linear_string_state('foo')],
-  linear_regexp(/f/) /!manyc /-map/ "_.join('')".qf / linear_regexp(/oo/) /-bfc/linear_string_state.end() /-p/ [new linear_string_state('ffoo')],
-  linear_regexp(/f/) /!manyc /-map/ "_.join('')".qf / linear_regexp(/oo/) /-bfc/linear_string_state.end() /-p/ [new linear_string_state('fffoo')],
-  linear_regexp(/f/) /!manyc /-map/ "_.join('')".qf / linear_regexp(/oo/) /-bfc/linear_string_state.end() /-p/ [new linear_string_state('fffffffffffoo')],
-
-  linear_regexp(/f/) /!manyc_one /-map/ "_.join('')".qf / linear_regexp(/oo/) /-bfc/linear_string_state.end() /-p/ [new linear_string_state('foo')],
-  linear_regexp(/f/) /!manyc_one /-map/ "_.join('')".qf / linear_regexp(/oo/) /-bfc/linear_string_state.end() /-p/ [new linear_string_state('ffoo')],
-  linear_regexp(/f/) /!manyc_one /-map/ "_.join('')".qf / linear_regexp(/oo/) /-bfc/linear_string_state.end() /-p/ [new linear_string_state('fffoo')],
-  linear_regexp(/f/) /!manyc_one /-map/ "_.join('')".qf / linear_regexp(/oo/) /-bfc/linear_string_state.end() /-p/ [new linear_string_state('fffffffffffoo')],
-
-
-  using [caterwaul.parser]}, {t: t})();
-
-__
-meta::sdoc('js::test-setup', <<'__');
-Prerequisites.
-We need to load dependencies and the extension modules.
-
-- pinclude pp::js::dependencies
-- pinclude pp::js::modules
-
-Unit tests.
-These are loaded automatically each time you boot up the REPL. This makes it easy to see when something has gone wrong.
-
-- pinclude pp::js::console
-- pinclude pp::js::test
+                                        it.caterwaul_parser = true]]});
 
 __
 meta::template('comment', '\'\';     # A mechanism for line or block comments.');
@@ -2462,4 +2076,4 @@ my $style  = retrieve($name);
 __
 internal::main();
 
-__END__
+__DATA__
