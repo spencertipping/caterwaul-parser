@@ -208,7 +208,7 @@ without consuming any input. The idea is to mark the current location without ac
       iv(f,                annotate(result, 'iv',                [f]))(states) = states *[x.change({value: f(x.input(), x.position())})] -seq,
 
       map(p, f,            annotate(result, 'map',            [p, f]))(states) = p(states) *[x.map(f)] -seq,
-      flat_map(p, f,       annotate(result, 'flat_map',       [p, f]))(states) = p(states) *~![f(x.value()) *y[x.map(delay in y)] -seq] -seq,
+      flat_map(p, f,       annotate(result, 'flat_map',       [p, f]))(states) = p(states) *~![f(x.value()) *y[x.map("y".qf)] -seq] -seq,
 
       map_state(p, f,      annotate(result, 'map_state',      [p, f]))(states) = p(states) *  [f(x)] -seq,
       flat_map_state(p, f, annotate(result, 'flat_map_state', [p, f]))(states) = p(states) *~![f(x)] -seq],
