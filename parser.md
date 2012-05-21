@@ -247,7 +247,7 @@ that isn't encapsulated in an array.
                 ctor(i, p, v, memo_table) = arguments.length > 1 ? this -se [it.i = i, it.p = p,                it.v = v,             it.table = memo_table] :
                                                                    this -se [it.i = i, it.p = default_position, it.v = default_value, it.table = {}],
 
-                methods_for(step)         = capture [id()           = this.cached_id -oeq- id_function.call(this),
+                methods_for(step)         = capture [id()           = this.cached_id -ocq- id_function.call(this),
                                                      input()        = this.i,  next(n, v)   = n === 1 ? step.call(this, this.p, v) : this.next(n - 1, v) *~![x.next(1, v)] -seq,
                                                      position()     = this.p,  map(f)       = new this.constructor(this.i, this.p, this.v /!f, this.table),
                                                      value()        = this.v,  memo_table() = this.table,
@@ -344,7 +344,7 @@ memoization partition.
       where [memoization_key       = $.gensym('memo'),
              memo_id               = 0,
 
-             memo_single(f, state) = value -where [f_key = f[memoization_key] -oeq- ++memo_id,
+             memo_single(f, state) = value -where [f_key = f[memoization_key] -ocq- ++memo_id,
                                                    s_key = state.id(),
                                                    table = state.memo_table(),
                                                    key   = '@#{s_key}_#{f_key}',            // Prefix with @ to eliminate the possibility of collisions with other properties

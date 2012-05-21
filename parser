@@ -255,6 +255,12 @@ meta::functor::editable 'waul', inherit => 1, extension => '.waul', default => '
 __
 meta::alias('e', 'edit sdoc::waul::parser');
 meta::alias('erf', 'edit function::render');
+meta::alias('et', 'edit sdoc::js::test');
+meta::alias('r', <<'__');
+sh waul -e deps/regexp.js -e parser.js -c :all
+
+__
+meta::alias('tr', 'test-repl');
 meta::bootstrap('html', <<'__');
 <html>
   <head>
@@ -890,6 +896,11 @@ my $hash = fast_hash(fast_hash(scalar @keys) . join '|', @keys);
 $hash = fast_hash("$data{$_}|$hash") for @keys;
 $hash;
 __
+meta::function('test-repl', <<'__');
+with_exported('js::test', sub {
+  sh("waul -e deps/regexp.js -e parser.js -e $_[0] -c :all")});
+
+__
 meta::function('touch', 'associate($_, \'\') for @_;');
 meta::function('unlock', 'hook(\'unlock\', chmod_self(sub {$_[0] | 0200}));');
 meta::function('update', <<'__');
@@ -987,7 +998,7 @@ with_exported("waul::$name", sub {
 
 __
 meta::hook('before-shell::ad', <<'__');
-ad('waul::');
+ad('sdoc::');
 
 __
 meta::indicator('cc', 'length ::retrieve(\'data::current-continuation\') ? "\\033[1;36mcc\\033[0;0m" : \'\';');
@@ -1682,6 +1693,16 @@ meta::retriever('sdocp', <<'__');
 my $attribute = attribute($_[0]);
 exists $data{"sdoc::$attribute"} ? sdocp("sdoc::$attribute") : undef;
 __
+meta::sdoc('js::test', <<'__');
+caterwaul.module('parser-test', ':all', function ($) {
+  wrap(parser) = "parser([new linear_string_state(_)])[0].value()".qf,
+  parens(xs)   = parens(xs), annotate(parens, 'parens', []),
+  parens       = linear_string('(') / parens /-bfc/ linear_string(')') /-alt/ linear_string('x'),
+  wp           = wrap(parens),
+
+  using [caterwaul.parser]});
+
+__
 meta::sdoc('waul::parser', <<'__');
 Caterwaul nonlinear parser combinators | Spencer Tipping
 Licensed under the terms of the MIT source code license
@@ -1918,7 +1939,7 @@ This is where we tie the parsers to actual data types. Each data type driver sho
               ctor(i, p, v, memo_table) = arguments.length > 1 ? this -se [it.i = i, it.p = p,                it.v = v,             it.table = memo_table] :
                                                                  this -se [it.i = i, it.p = default_position, it.v = default_value, it.table = {}],
 
-              methods_for(step)         = capture [id()           = this.cached_id -oeq- id_function.call(this),
+              methods_for(step)         = capture [id()           = this.cached_id -ocq- id_function.call(this),
                                                    input()        = this.i,  next(n, v)   = n === 1 ? step.call(this, this.p, v) : this.next(n - 1, v) *~![x.next(1, v)] -seq,
                                                    position()     = this.p,  map(f)       = new this.constructor(this.i, this.p, this.v /!f, this.table),
                                                    value()        = this.v,  memo_table() = this.table,
@@ -2009,7 +2030,7 @@ memoization partition.
   where [memoization_key       = $.gensym('memo'),
          memo_id               = 0,
 
-         memo_single(f, state) = value -where [f_key = f[memoization_key] -oeq- ++memo_id,
+         memo_single(f, state) = value -where [f_key = f[memoization_key] -ocq- ++memo_id,
                                                s_key = state.id(),
                                                table = state.memo_table(),
                                                key   = '@#{s_key}_#{f_key}',            // Prefix with @ to eliminate the possibility of collisions with other properties
